@@ -4,6 +4,7 @@ import axios from 'axios'
 import { FileText, CheckCircle, Save, RefreshCw, AlertCircle } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
+
 interface Template {
     id: number
     nome: string
@@ -37,23 +38,29 @@ const Dashboard = () => {
             setLoading(true)
             setError(null)
             const response = await axios.get("/api/dashboard")
-            
-            // If user is an avaliador, fetch templates for each enabled FUC
+
+            const rawFucs: FUC[] = Array.isArray(response.data.fucs) ? response.data.fucs : []
+
             if (user?.type === 'avaliador') {
                 const fucsWithTemplates = await Promise.all(
-                    response.data.fucs
+                    rawFucs
                         .filter((fuc: FUC) => fuc.enabled)
                         .map(async (fuc: FUC) => {
-                            const templatesResponse = await axios.get(`/api/templates?fuc_id=${fuc.id}`)
-                            return {
-                                ...fuc,
-                                templates: templatesResponse.data
+                            try {
+                                const templatesResponse = await axios.get(`/api/templates?fuc_id=${fuc.id}`)
+                                return {
+                                    ...fuc,
+                                    templates: templatesResponse.data
+                                }
+                            } catch (err) {
+                                console.warn(`Erro ao buscar templates da FUC ${fuc.id}`, err)
+                                return { ...fuc, templates: [] }
                             }
                         })
                 )
                 setDashboardData({ fucs: fucsWithTemplates })
             } else {
-                setDashboardData(response.data)
+                setDashboardData({ fucs: rawFucs })
             }
         } catch (error) {
             console.error('Erro ao pesquisar dados para dashboard:', error)
@@ -62,6 +69,7 @@ const Dashboard = () => {
             setLoading(false)
         }
     }
+
 
     useEffect(() => {
         fetchDashboardData()
@@ -101,7 +109,8 @@ const Dashboard = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-6">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">FUCs Disponíveis</h2>
-                    {!dashboardData?.fucs.length ? (
+
+                    {!Array.isArray(dashboardData?.fucs) || dashboardData.fucs.length === 0 ? (
                         <p className="text-gray-600 text-center py-8">Nenhuma FUC disponível de momento.</p>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -119,19 +128,20 @@ const Dashboard = () => {
                                         </div>
                                         <FileText className="w-6 h-6 text-purple-600" />
                                     </div>
+
                                     <div className="mt-4">
                                         {user?.type === 'avaliador' ? (
                                             fuc.templates && fuc.templates.length > 0 ? (
                                                 <div className="space-y-2">
                                                     <label className="block text-sm font-medium text-gray-700">
-                                                        Selecione um template:
+                                                        Selecione uma template:
                                                     </label>
                                                     <select
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500"
                                                         onChange={(e) => handleTemplateSelect(fuc.templates![parseInt(e.target.value)])}
                                                         defaultValue=""
                                                     >
-                                                        <option value="" disabled>Escolha um template</option>
+                                                        <option value="" disabled>Escolha uma template</option>
                                                         {fuc.templates.map((template, index) => (
                                                             <option key={template.id} value={index}>
                                                                 {template.nome}
@@ -140,7 +150,7 @@ const Dashboard = () => {
                                                     </select>
                                                 </div>
                                             ) : (
-                                                <p className="text-sm text-gray-500">Nenhum template disponível</p>
+                                                <p className="text-sm text-gray-500">Nenhuma template disponível</p>
                                             )
                                         ) : (
                                             <Link
