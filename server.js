@@ -1,9 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const { body, param, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const pool = require('./data/database/db');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+
+app.use(limiter);
 
 const allowedOrigins = [
   'http://localhost:10000',
@@ -23,8 +33,25 @@ app.use(cors({
 
 app.use(express.json());
 
+// Error handling middleware
+const handleErrors = (err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+};
+
+// Validation middleware
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
 // Get specific FUC
-app.get('/api/fucs/:id', async (req, res) => {
+app.get('/api/fucs/:id', [
+  param('id').isInt().withMessage('ID must be an integer')
+], validate, async (req, res) => {
   const { id } = req.params;
   try {
     const { rows } = await pool.query('SELECT * FROM fucs WHERE id = $1', [id]);
@@ -50,7 +77,10 @@ app.get('/api/fucs', async (req, res) => {
 });
 
 // Update FUC status
-app.patch('/api/fucs/:id', async (req, res) => {
+app.patch('/api/fucs/:id', [
+  param('id').isInt().withMessage('ID must be an integer'),
+  body('enabled').isBoolean().withMessage('enabled must be a boolean')
+], validate, async (req, res) => {
   const { id } = req.params;
   const { enabled } = req.body;
   try {
@@ -112,7 +142,12 @@ app.get('/api/templates', async (req, res) => {
   }
 });
 
-app.post('/api/templates', async (req, res) => {
+app.post('/api/templates', [
+  body('nome').notEmpty().trim().withMessage('Nome é obrigatório'),
+  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório'),
+  body('fuc_id').isInt().withMessage('FUC ID deve ser um número'),
+  body('criado_por').isInt().withMessage('Criador ID deve ser um número')
+], validate, async (req, res) => {
   const { nome, conteudo, fuc_id, criado_por } = req.body;
   try {
     const { rows } = await pool.query(
@@ -126,7 +161,11 @@ app.post('/api/templates', async (req, res) => {
   }
 });
 
-app.put('/api/templates/:id', async (req, res) => {
+app.put('/api/templates/:id', [
+  param('id').isInt().withMessage('ID must be an integer'),
+  body('nome').notEmpty().trim().withMessage('Nome é obrigatório'),
+  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
+], validate, async (req, res) => {
   const { id } = req.params;
   const { nome, conteudo } = req.body;
   try {
@@ -144,7 +183,9 @@ app.put('/api/templates/:id', async (req, res) => {
   }
 });
 
-app.get('/api/templates/:id', async (req, res) => {
+app.get('/api/templates/:id', [
+  param('id').isInt().withMessage('ID must be an integer')
+], validate, async (req, res) => {
   const { id } = req.params;
   try {
     const { rows } = await pool.query(`
@@ -164,100 +205,12 @@ app.get('/api/templates/:id', async (req, res) => {
   }
 });
 
-// Avaliações
-app.get('/api/avaliacoes/:fucId', async (req, res) => {
-  const { fucId } = req.params;
-  try {
-    const { rows } = await pool.query(`
-      SELECT a.*, u.username as avaliador_nome, t.nome as template_nome
-      FROM avaliacoes a
-      LEFT JOIN users u ON a.avaliador_id = u.id
-      LEFT JOIN templates t ON a.template_id = t.id
-      WHERE a.fuc_id = $1
-      ORDER BY a.created_at DESC
-    `, [fucId]);
-    res.json(rows);
-  } catch (err) {
-    console.error('Erro ao buscar avaliações:', err);
-    res.status(500).json({ error: 'Erro ao buscar avaliações' });
-  }
-});
-
-app.post('/api/avaliacoes', async (req, res) => {
-  const { template_id, fuc_id, avaliador_id, respostas } = req.body;
-  try {
-    const { rows } = await pool.query(
-      'INSERT INTO avaliacoes (template_id, fuc_id, avaliador_id, respostas) VALUES ($1, $2, $3, $4) RETURNING *',
-      [template_id, fuc_id, avaliador_id, respostas]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao criar avaliação:', err);
-    res.status(500).json({ error: 'Erro ao criar avaliação' });
-  }
-});
-
-// Permissões
-app.get('/api/fuc-permissions/:gestorId', async (req, res) => {
-  const { gestorId } = req.params;
-  try {
-    const { rows } = await pool.query(
-      'SELECT f.* FROM fucs f INNER JOIN fuc_permissions p ON f.id = p.fuc_id WHERE p.gestor_id = $1',
-      [gestorId]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('Erro ao buscar permissões:', err);
-    res.status(500).json({ error: 'Erro ao buscar permissões' });
-  }
-});
-
-app.post('/api/fuc-permissions', async (req, res) => {
-  const { gestor_id, fuc_id } = req.body;
-  try {
-    await pool.query(
-      'INSERT INTO fuc_permissions (gestor_id, fuc_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [gestor_id, fuc_id]
-    );
-    res.status(201).json({ message: 'Permissão adicionada com sucesso' });
-  } catch (err) {
-    console.error('Erro ao adicionar permissão:', err);
-    res.status(500).json({ error: 'Erro ao adicionar permissão' });
-  }
-});
-
-app.delete('/api/fuc-permissions', async (req, res) => {
-  const { gestor_id, fuc_id } = req.body;
-  try {
-    await pool.query(
-      'DELETE FROM fuc_permissions WHERE gestor_id = $1 AND fuc_id = $2',
-      [gestor_id, fuc_id]
-    );
-    res.status(204).send();
-  } catch (err) {
-    console.error('Erro ao remover permissão:', err);
-    res.status(500).json({ error: 'Erro ao remover permissão' });
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Servidor online na porta ${PORT}`);
-});
-
-
 // Users endpoints
-//criar
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', [
+  body('username').notEmpty().trim().withMessage('Username é obrigatório'),
+  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+], validate, async (req, res) => {
   const { username, role } = req.body;
-
-  if (!username || !role) {
-    return res.status(400).json({ error: 'username e role são obrigatórios' });
-  }
-
-  const rolesValidos = ['admin', 'gestor', 'avaliador'];
-  if (!rolesValidos.includes(role)) {
-    return res.status(400).json({ error: `Role inválido. Use apenas: ${rolesValidos.join(', ')}` });
-  }
 
   try {
     const { rows } = await pool.query(
@@ -275,7 +228,6 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-//listar
 app.get('/api/users', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -288,17 +240,18 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-//alterar role
-app.patch('/api/users/:id', async (req, res) => {
+app.patch('/api/users/:id', [
+  param('id').isInt().withMessage('ID must be an integer'),
+  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+], validate, async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
 
-  if (!['admin', 'gestor', 'avaliador'].includes(role)) {
-    return res.status(400).json({ error: 'Cargo inválido' });
-  }
-
   try {
-    await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
+    const result = await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
     res.json({ message: 'Utilizador atualizado com sucesso' });
   } catch (err) {
     console.error(err);
@@ -306,13 +259,16 @@ app.patch('/api/users/:id', async (req, res) => {
   }
 });
 
-
-//remover
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', [
+  param('id').isInt().withMessage('ID must be an integer')
+], validate, async (req, res) => {
   const { id } = req.params;
 
   try {
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    }
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -320,13 +276,11 @@ app.delete('/api/users/:id', async (req, res) => {
   }
 });
 
-// Verificar se utilizador existe com username e role
-app.post('/api/users/verify', async (req, res) => {
+app.post('/api/users/verify', [
+  body('username').notEmpty().trim().withMessage('Username é obrigatório'),
+  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+], validate, async (req, res) => {
   const { username, role } = req.body;
-
-  if (!username || !role) {
-    return res.status(400).json({ error: 'Username e role são obrigatórios' });
-  }
 
   try {
     const { rows } = await pool.query(
@@ -338,9 +292,15 @@ app.post('/api/users/verify', async (req, res) => {
       return res.status(404).json({ error: 'Utilizador não encontrado ou role incorreta' });
     }
 
-    res.json(rows[0]); // retorna { id, username, role }
+    res.json(rows[0]);
   } catch (err) {
     console.error('Erro ao verificar utilizador:', err);
     res.status(500).json({ error: 'Erro interno ao verificar utilizador' });
   }
+});
+
+app.use(handleErrors);
+
+app.listen(PORT, () => {
+  console.log(`Servidor online na porta ${PORT}`);
 });
