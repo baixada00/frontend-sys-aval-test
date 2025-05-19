@@ -7,14 +7,12 @@ const PORT = process.env.PORT || 10000;
 
 const allowedOrigins = [
   'http://localhost:10000',
-  'https://projeto-estagio-sys-fuc-aval-mjff-l64x3mm0d.vercel.app',
   'https://projeto-estagio-sys-fuc-aval.vercel.app'
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || origin.includes('.vercel.app')) {
       return callback(null, true);
     } else {
       return callback(new Error('Not allowed by CORS'));
@@ -155,7 +153,7 @@ app.get('/api/templates/:id', async (req, res) => {
       LEFT JOIN users u ON t.criado_por = u.id 
       WHERE t.id = $1
     `, [id]);
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Template não encontrado' });
     }
@@ -244,4 +242,105 @@ app.delete('/api/fuc-permissions', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Servidor online na porta ${PORT}`);
+});
+
+
+// Users endpoints
+//criar
+app.post('/api/users', async (req, res) => {
+  const { username, role } = req.body;
+
+  if (!username || !role) {
+    return res.status(400).json({ error: 'username e role são obrigatórios' });
+  }
+
+  const rolesValidos = ['admin', 'gestor', 'avaliador'];
+  if (!rolesValidos.includes(role)) {
+    return res.status(400).json({ error: `Role inválido. Use apenas: ${rolesValidos.join(', ')}` });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO users (username, role) VALUES ($1, $2) RETURNING id, username, role, created_at',
+      [username, role]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Erro ao criar utilizador:', err);
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'Username já existe.' });
+    } else {
+      res.status(500).json({ error: 'Erro ao criar utilizador' });
+    }
+  }
+});
+
+//listar
+app.get('/api/users', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, username, role, created_at FROM users ORDER BY username'
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Erro ao listar utilizadores:', err);
+    res.status(500).json({ error: 'Erro ao listar utilizadores' });
+  }
+});
+
+//alterar role
+app.patch('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!['admin', 'gestor', 'avaliador'].includes(role)) {
+    return res.status(400).json({ error: 'Cargo inválido' });
+  }
+
+  try {
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
+    res.json({ message: 'Utilizador atualizado com sucesso' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar utilizador' });
+  }
+});
+
+
+//remover
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao apagar utilizador' });
+  }
+});
+
+// Verificar se utilizador existe com username e role
+app.post('/api/users/verify', async (req, res) => {
+  const { username, role } = req.body;
+
+  if (!username || !role) {
+    return res.status(400).json({ error: 'Username e role são obrigatórios' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, username, role FROM users WHERE username = $1 AND role = $2',
+      [username, role]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Utilizador não encontrado ou role incorreta' });
+    }
+
+    res.json(rows[0]); // retorna { id, username, role }
+  } catch (err) {
+    console.error('Erro ao verificar utilizador:', err);
+    res.status(500).json({ error: 'Erro interno ao verificar utilizador' });
+  }
 });
