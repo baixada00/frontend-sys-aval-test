@@ -25,7 +25,7 @@ const Relatorios = () => {
       setLoading(true)
       setError(null)
       const response = await axios.get('https://projeto-estagio-sys-fuc-aval.onrender.com/api/relatorios')
-      setRelatorios(response.data)
+      setRelatorios(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       console.error('Erro ao carregar relatórios:', error)
       setError('Não foi possível carregar os relatórios. Por favor, tente novamente.')
@@ -39,6 +39,8 @@ const Relatorios = () => {
   }, [])
 
   const filtrarRelatorios = () => {
+    if (!Array.isArray(relatorios)) return []
+    
     return relatorios.filter(relatorio => {
       const matchAvaliador = relatorio.avaliador.toLowerCase().includes(filtros.avaliador.toLowerCase())
       const matchStatus = filtros.status === 'Todos' || relatorio.status === filtros.status.toLowerCase()
@@ -157,44 +159,47 @@ const Relatorios = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {relatoriosFiltrados.map((relatorio, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {relatorio.fuc}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <User className="w-4 h-4 mr-2 text-gray-400" />
-                      {relatorio.avaliador}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      relatorio.status === 'submetido' 
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {relatorio.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-2 text-gray-400" />
-                      {new Date(relatorio.data).toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-md truncate">
-                    {relatorio.comentario}
+              {!Array.isArray(relatoriosFiltrados) || relatoriosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    Nenhum relatório encontrado com os filtros selecionados.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                relatoriosFiltrados.map((relatorio, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {relatorio.fuc}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <User className="w-4 h-4 mr-2 text-gray-400" />
+                        {relatorio.avaliador}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        relatorio.status === 'submetido' 
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {relatorio.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <Clock className="w-4 h-4 mr-2 text-gray-400" />
+                        {new Date(relatorio.data).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 max-w-md truncate">
+                      {relatorio.comentario}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
-          {relatoriosFiltrados.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              Nenhum relatório encontrado com os filtros selecionados.
-            </div>
-          )}
         </div>
       </div>
     </div>

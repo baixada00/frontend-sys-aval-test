@@ -28,7 +28,7 @@ const GerirTemplate = () => {
             try {
                 setLoading(true)
                 const response = await axios.get(`/api/templates?fuc_id=${id}`)
-                setTemplates(response.data)
+                setTemplates(Array.isArray(response.data) ? response.data : [])
             } catch (error) {
                 console.error('Erro ao carregar templates:', error)
                 setError('Não foi possível carregar os templates.')
@@ -177,35 +177,39 @@ const GerirTemplate = () => {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {templates.map(template => (
-                            <div
-                                key={template.id}
-                                className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100"
-                            >
-                                <div>
-                                    <h3 className="text-lg font-medium text-purple-900">{template.nome}</h3>
-                                    <p className="text-sm text-gray-600">
-                                        Criada em: {new Date(template.created_at).toLocaleDateString()}
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setCurrentTemplate(template)}
-                                        className="px-4 py-2 text-purple-600 border border-purple-600 rounded-md hover:bg-purple-50"
-                                    >
-                                        Editar
-                                    </button>
-                                    {user?.type === 'gestor' && (
+                        {!Array.isArray(templates) || templates.length === 0 ? (
+                            <p className="text-center text-gray-600 py-8">Nenhum template disponível.</p>
+                        ) : (
+                            templates.map(template => (
+                                <div
+                                    key={template.id}
+                                    className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100"
+                                >
+                                    <div>
+                                        <h3 className="text-lg font-medium text-purple-900">{template.nome}</h3>
+                                        <p className="text-sm text-gray-600">
+                                            Criada em: {new Date(template.created_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2">
                                         <button
-                                            onClick={() => handleDelete(template.id)}
-                                            className="px-4 py-2 text-red-600 border border-red-600 rounded-md hover:bg-red-50"
+                                            onClick={() => setCurrentTemplate(template)}
+                                            className="px-4 py-2 text-purple-600 border border-purple-600 rounded-md hover:bg-purple-50"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            Editar
                                         </button>
-                                    )}
+                                        {user?.type === 'gestor' && (
+                                            <button
+                                                onClick={() => handleDelete(template.id)}
+                                                className="px-4 py-2 text-red-600 border border-red-600 rounded-md hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 )}
             </div>
