@@ -3,14 +3,22 @@ const cors = require('cors');
 const { body, param, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const pool = require('./data/database/db');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const fucDir = path.join(__dirname, 'data/fucs');
+
+// Ensure FUCs directory exists
+if (!fs.existsSync(fucDir)) {
+  fs.mkdirSync(fucDir, { recursive: true });
+}
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 
 app.use(limiter);
@@ -47,6 +55,50 @@ const validate = (req, res, next) => {
   }
   next();
 };
+
+// Get unloaded FUC files
+app.get('/api/fucs/files/unloaded', async (req, res) => {
+  try {
+    const { rows: existingFUCs } = await pool.query('SELECT path FROM fucs');
+    const existingPaths = existingFUCs.map(row => row.path);
+
+    const files = fs.readdirSync(fucDir).filter(f => f.endsWith('.txt'));
+    const notLoaded = files.filter(file => !existingPaths.includes(file));
+
+    res.json(notLoaded);
+  } catch (err) {
+    console.error('Error listing unloaded FUC files:', err);
+    res.status(500).json({ error: 'Error listing files' });
+  }
+});
+
+// Load FUC from file
+app.post('/api/fucs/from-file', [
+  body('filename').notEmpty().trim().matches(/\.txt$/).withMessage('Invalid filename')
+], validate, async (req, res) => {
+  const { filename } = req.body;
+  const filePath = path.join(fucDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  try {
+    const conteudo = fs.readFileSync(filePath, 'utf-8');
+    const titulo = filename.replace('.txt', '');
+
+    const { rows } = await pool.query(`
+      INSERT INTO fucs (titulo, conteudo, path, enabled)
+      VALUES ($1, $2, $3, false)
+      RETURNING *
+    `, [titulo, conteudo, filename]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Error inserting FUC:', err);
+    res.status(500).json({ error: 'Error inserting FUC' });
+  }
+});
 
 // Get specific FUC
 app.get('/api/fucs/:id', [

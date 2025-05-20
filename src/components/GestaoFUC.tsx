@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
-import { FileText, RefreshCw, AlertCircle, Calendar, ToggleLeft as Toggle, Plus } from 'lucide-react'
+import { FileText, RefreshCw, AlertCircle, Calendar, ToggleLeft as Toggle, Plus, Upload } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
 interface FUC {
@@ -15,6 +15,7 @@ interface FUC {
 const GestaoFUC = () => {
   const { user } = useUser()
   const [fucs, setFucs] = useState<FUC[]>([])
+  const [unloadedFucs, setUnloadedFucs] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,15 +25,36 @@ const GestaoFUC = () => {
       setError(null)
       const endpoint = user?.type === 'admin' 
         ? '/api/fucs'
-        : `/api/fuc-permissions/${user?.id}`;
+        : `/api/fuc-permissions/${user?.id}`
       
       const response = await axios.get(endpoint)
-      setFucs(response.data)
+      setFucs(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
       console.error("Erro ao procurar FUCs", error)
       setError('Erro ao carregar FUCs. Por favor, tente novamente.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUnloadedFUCs = async () => {
+    try {
+      const response = await axios.get('/api/fucs/files/unloaded')
+      setUnloadedFucs(Array.isArray(response.data) ? response.data : [])
+    } catch (error) {
+      console.error('Erro ao buscar FUCs não carregadas:', error)
+      setError('Erro ao carregar lista de FUCs disponíveis.')
+    }
+  }
+
+  const handleLoadFUC = async (filename: string) => {
+    try {
+      await axios.post('/api/fucs/from-file', { filename })
+      await fetchFUCs()
+      await fetchUnloadedFUCs()
+    } catch (error) {
+      console.error('Erro ao carregar FUC:', error)
+      alert('Erro ao carregar a FUC')
     }
   }
 
@@ -52,6 +74,9 @@ const GestaoFUC = () => {
 
   useEffect(() => {
     fetchFUCs()
+    if (user?.type === 'admin') {
+      fetchUnloadedFUCs()
+    }
   }, [user])
 
   if (loading) {
@@ -78,20 +103,41 @@ const GestaoFUC = () => {
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-purple-900">Gestão de FUCs</h1>
-          {user?.type === 'gestor' && (
-            <Link
-              to="/gerir-template"
-              className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Template
-            </Link>
-          )}
+          <button
+            onClick={fetchUnloadedFUCs}
+            className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar Lista
+          </button>
         </div>
+
+        {user?.type === 'admin' && unloadedFucs.length > 0 && (
+          <div className="mt-6 bg-gray-50 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">FUCs Disponíveis para Carregar</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {unloadedFucs.map(filename => (
+                <div key={filename} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">{filename}</span>
+                    <button
+                      onClick={() => handleLoadFUC(filename)}
+                      className="inline-flex items-center px-3 py-1 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Carregar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {fucs.length === 0 ? (
+        <h2 className="text-xl font-semibold text-gray-900 mb-6">FUCs Carregadas</h2>
+        {!Array.isArray(fucs) || fucs.length === 0 ? (
           <p className="text-center text-gray-600 py-8">Nenhuma FUC disponível no momento.</p>
         ) : (
           <div className="space-y-4">
