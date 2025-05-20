@@ -23,3 +23,5 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }
 
   return element
 }
+
+export default ProtectedRoute
