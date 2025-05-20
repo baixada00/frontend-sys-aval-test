@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 
 interface User {
     id: number
@@ -15,7 +15,23 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined)
 
 export function UserProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null)
+    const [user, setUserState] = useState<User | null>(null)
+
+    useEffect(() => {
+        const storedUser = sessionStorage.getItem('fuc_user')
+        if (storedUser) {
+            setUserState(JSON.parse(storedUser))
+        }
+    }, [])
+
+    const setUser = (newUser: User | null) => {
+        if (newUser) {
+            sessionStorage.setItem('fuc_user', JSON.stringify(newUser))
+        } else {
+            sessionStorage.removeItem('fuc_user')
+        }
+        setUserState(newUser)
+    }
 
     return (
         <UserContext.Provider value={{ user, setUser }}>
@@ -26,7 +42,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
 export function useUser() {
     const context = useContext(UserContext)
-    if (context === undefined) {
+    if (!context) {
         throw new Error('useUser must be used within a UserProvider')
     }
     return context
