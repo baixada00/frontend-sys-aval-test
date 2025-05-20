@@ -1,5 +1,5 @@
 import React from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useUser } from '../context/UserContext'
 
 interface ProtectedRouteProps {
@@ -9,9 +9,12 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }) => {
   const { user } = useUser()
+  const location = useLocation()
 
   if (!user) {
-    return <Navigate to="/admin/add-user" replace />
+    // Store the attempted path in sessionStorage before redirecting
+    sessionStorage.setItem('redirectPath', location.pathname)
+    return <Navigate to="/login" replace />
   }
 
   if (allowedRoles && !allowedRoles.includes(user.type)) {
@@ -20,5 +23,3 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }
 
   return element
 }
-
-export default ProtectedRoute
