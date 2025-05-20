@@ -15,13 +15,6 @@ if (!fs.existsSync(fucDir)) {
   fs.mkdirSync(fucDir, { recursive: true });
 }
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-});
-
-app.use(limiter);
 
 const allowedOrigins = [
   'http://localhost:10000',
