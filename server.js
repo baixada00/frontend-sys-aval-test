@@ -15,7 +15,6 @@ if (!fs.existsSync(fucDir)) {
   fs.mkdirSync(fucDir, { recursive: true });
 }
 
-
 const allowedOrigins = [
   'http://localhost:10000',
   'https://projeto-estagio-sys-fuc-aval.vercel.app'
@@ -50,6 +49,7 @@ const validate = (req, res, next) => {
 };
 
 // Get unloaded FUC files
+// Get unloaded FUC files
 app.get('/api/fucs/files/unloaded', async (req, res) => {
   try {
     const { rows: existingFUCs } = await pool.query('SELECT path FROM fucs');
@@ -57,6 +57,10 @@ app.get('/api/fucs/files/unloaded', async (req, res) => {
 
     const files = fs.readdirSync(fucDir).filter(f => f.endsWith('.txt'));
     const notLoaded = files.filter(file => !existingPaths.includes(file));
+
+    res.setHeader('Cache-Control', 'no-store'); // <- evita que Vercel/Browser guarde cache
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     res.json(notLoaded);
   } catch (err) {
