@@ -36,7 +36,7 @@ function AppContent() {
           <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor', 'admin']} />} />
           <Route path="/avaliacao-fuc/:id" element={<ProtectedRoute element={<AvaliacaoFUC />} />} />
           <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />
-          <Route path="/admin/add-user" element={<ProtectedRoute element={<AddUser />} allowedRoles={['admin']} />} />
+          <Route path="/admin/add-user" element={<ProtectedRoute element={<AdminAddUser />} allowedRoles={['admin']} />} />
         </Routes>
       </main>
     </div>
