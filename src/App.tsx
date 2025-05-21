@@ -7,6 +7,7 @@ import AvaliacaoFUC from './components/AvaliacaoFUC'
 import Relatorios from './components/Relatorios'
 import AdminAddUser from './components/AdminAddUser'
 import GerirTemplate from './components/GerirTemplate'
+import CriarFUC from './components/CriarFUC'
 import Login from './components/Login'
 import { UserProvider, useUser } from './context/UserContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -16,10 +17,9 @@ function AppContent() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // If user is logged in and we're at login or root, redirect to saved path or dashboard
     if (user && (window.location.pathname === '/login' || window.location.pathname === '/')) {
       const redirectPath = sessionStorage.getItem('redirectPath') || '/dashboard'
-      sessionStorage.removeItem('redirectPath') // Clear the stored path
+      sessionStorage.removeItem('redirectPath')
       navigate(redirectPath)
     }
   }, [user, navigate])
@@ -33,6 +33,7 @@ function AppContent() {
           <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
           <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['gestor', 'admin']} />} />
+          <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['gestor', 'admin']} />} />
           <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor', 'admin']} />} />
           <Route path="/avaliacao-fuc/:id" element={<ProtectedRoute element={<AvaliacaoFUC />} />} />
           <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />

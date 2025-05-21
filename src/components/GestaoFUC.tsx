@@ -23,10 +23,10 @@ const GestaoFUC = () => {
     try {
       setLoading(true)
       setError(null)
-      const endpoint = user?.type === 'admin' 
+      const endpoint = user?.type === 'admin'
         ? '/api/fucs'
         : `/api/fuc-permissions/${user?.id}`
-      
+
       const response = await axios.get(endpoint)
       setFucs(Array.isArray(response.data) ? response.data : [])
     } catch (error) {
@@ -103,13 +103,22 @@ const GestaoFUC = () => {
       <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-purple-900">Gestão de FUCs</h1>
-          <button
-            onClick={fetchUnloadedFUCs}
-            className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Atualizar Lista
-          </button>
+          <div className="flex gap-4">
+            <Link
+              to="/criar-fuc"
+              className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Nova FUC
+            </Link>
+            <button
+              onClick={fetchUnloadedFUCs}
+              className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Atualizar Lista
+            </button>
+          </div>
         </div>
 
         {user?.type === 'admin' && unloadedFucs.length > 0 && (
@@ -163,11 +172,10 @@ const GestaoFUC = () => {
                   {user?.type === 'admin' && (
                     <button
                       onClick={() => toggleFUCStatus(fuc.id, fuc.enabled)}
-                      className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
-                        fuc.enabled
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                      className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${fuc.enabled
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
                     >
                       <Toggle className="w-4 h-4 mr-2" />
                       {fuc.enabled ? 'Ativo' : 'Inativo'}
