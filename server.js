@@ -31,6 +31,13 @@ app.use(cors({
   credentials: true,
 }));
 
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+
+app.use(limiter);
 app.use(express.json());
 
 // Error handling middleware
@@ -49,7 +56,6 @@ const validate = (req, res, next) => {
 };
 
 // Get unloaded FUC files
-// Get unloaded FUC files
 app.get('/api/fucs/files/unloaded', async (req, res) => {
   try {
     const { rows: existingFUCs } = await pool.query('SELECT path FROM fucs');
@@ -58,7 +64,7 @@ app.get('/api/fucs/files/unloaded', async (req, res) => {
     const files = fs.readdirSync(fucDir).filter(f => f.endsWith('.txt'));
     const notLoaded = files.filter(file => !existingPaths.includes(file));
 
-    res.setHeader('Cache-Control', 'no-store'); // <- evita que Vercel/Browser guarde cache
+    res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
@@ -66,6 +72,46 @@ app.get('/api/fucs/files/unloaded', async (req, res) => {
   } catch (err) {
     console.error('Error listing unloaded FUC files:', err);
     res.status(500).json({ error: 'Error listing files' });
+  }
+});
+
+// Save FUC draft
+app.post('/api/fucs/rascunho', [
+  body('titulo').notEmpty().trim().withMessage('Título é obrigatório'),
+  body('tipo').notEmpty().trim().withMessage('Tipo é obrigatório'),
+  body('campos').isArray().withMessage('Campos devem ser um array'),
+  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
+], validate, async (req, res) => {
+  const { titulo, tipo, campos, conteudo } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, false) RETURNING *',
+      [titulo, tipo, JSON.stringify(campos), conteudo]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Erro ao salvar rascunho:', err);
+    res.status(500).json({ error: 'Erro ao salvar rascunho' });
+  }
+});
+
+// Finalize FUC
+app.post('/api/fucs/finalizar', [
+  body('titulo').notEmpty().trim().withMessage('Título é obrigatório'),
+  body('tipo').notEmpty().trim().withMessage('Tipo é obrigatório'),
+  body('campos').isArray().withMessage('Campos devem ser um array'),
+  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
+], validate, async (req, res) => {
+  const { titulo, tipo, campos, conteudo } = req.body;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, true) RETURNING *',
+      [titulo, tipo, JSON.stringify(campos), conteudo]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('Erro ao finalizar FUC:', err);
+    res.status(500).json({ error: 'Erro ao finalizar FUC' });
   }
 });
 
@@ -84,11 +130,10 @@ app.post('/api/fucs/from-file', [
     const conteudo = fs.readFileSync(filePath, 'utf-8');
     const titulo = filename.replace('.txt', '');
 
-    const { rows } = await pool.query(`
-      INSERT INTO fucs (titulo, conteudo, path, enabled)
-      VALUES ($1, $2, $3, false)
-      RETURNING *
-    `, [titulo, conteudo, filename]);
+    const { rows } = await pool.query(
+      'INSERT INTO fucs (titulo, conteudo, path, enabled) VALUES ($1, $2, $3, false) RETURNING *',
+      [titulo, conteudo, filename]
+    );
 
     res.status(201).json(rows[0]);
   } catch (err) {
