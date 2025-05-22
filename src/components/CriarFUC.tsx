@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, FileDown, CheckCircle, Plus, Trash2 } from 'lucide-react'
+import { Save, FileDown, CheckCircle, Plus, Trash2, Upload } from 'lucide-react'
 
 interface Campo {
   id: string
@@ -12,10 +12,62 @@ interface Campo {
 
 const CriarFUC = () => {
   const navigate = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [titulo, setTitulo] = useState('')
   const [tipo, setTipo] = useState('')
   const [campos, setCampos] = useState<Campo[]>([])
   const [showPreview, setShowPreview] = useState(false)
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      // Parse the content and populate the form
+      const lines = content.split('\n')
+      let currentTitle = ''
+      let currentDescription = ''
+      let currentFields: Campo[] = []
+
+      lines.forEach((line) => {
+        if (line.match(/^\d+\./)) {
+          // This is a title line
+          if (currentTitle && currentDescription) {
+            currentFields.push({
+              id: `campo_${Date.now()}_${currentFields.length}`,
+              titulo: currentTitle,
+              descricao: currentDescription,
+              tipo: 'texto',
+              maxCaracteres: 1000
+            })
+          }
+          currentTitle = line.trim()
+          currentDescription = ''
+        } else {
+          // This is part of the description
+          currentDescription += line + '\n'
+        }
+      })
+
+      // Add the last field
+      if (currentTitle && currentDescription) {
+        currentFields.push({
+          id: `campo_${Date.now()}_${currentFields.length}`,
+          titulo: currentTitle,
+          descricao: currentDescription.trim(),
+          tipo: 'texto',
+          maxCaracteres: 1000
+        })
+      }
+
+      // Set the form state
+      setTitulo(file.name.replace('.txt', ''))
+      setCampos(currentFields)
+    }
+    reader.readAsText(file)
+  }
 
   const adicionarCampo = () => {
     const novoCampo: Campo = {
@@ -107,6 +159,23 @@ const CriarFUC = () => {
     <div className="max-w-4xl mx-auto p-6 space-y-8">
       <div className="bg-white rounded-lg shadow p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Criar Nova FUC</h1>
+
+        <div className="mb-6">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Importar de arquivo .txt
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".txt"
+            className="hidden"
+          />
+        </div>
 
         <div className="space-y-6">
           <div>
