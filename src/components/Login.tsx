@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserCheck, ShieldAlert, Users, UserCog, FileText } from 'lucide-react'
 import { useUser } from '../context/UserContext'
+import { API_BASE } from '../config/api'
 
 interface UserTypeConfig {
     icon: React.ReactNode
@@ -39,7 +40,7 @@ const Login = () => {
             setLoading(true)
             setError(null)
 
-            const response = await fetch('https://projeto-estagio-sys-fuc-aval.onrender.com/api/users/verify', {
+            const response = await fetch(`${API_BASE}/api/users/verify`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
