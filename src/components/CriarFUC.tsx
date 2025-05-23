@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Save, FileDown, CheckCircle, Plus, Trash2, Upload } from 'lucide-react'
-
+import { API_BASE } from '../config/api'
 
 interface Campo {
     id: string
@@ -130,7 +130,7 @@ const CriarFUC = () => {
 
     const salvarRascunho = async () => {
         try {
-            const response = await fetch('https://projeto-estagio-sys-fuc-aval.onrender.com/api/fucs/rascunho', {
+            const response = await fetch(`${API_BASE}/api/fucs/rascunho`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -149,10 +149,9 @@ const CriarFUC = () => {
         }
     }
 
-
     const finalizarFUC = async () => {
         try {
-            const response = await fetch('https://projeto-estagio-sys-fuc-aval.onrender.com/api/fucs/finalizar', {
+            const response = await fetch(`${API_BASE}/api/fucs/finalizar`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
