@@ -4,6 +4,7 @@ import axios from 'axios'
 import { FileText, CheckCircle, Save, RefreshCw, AlertCircle } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
+
 //TODO: METEr as paginas em algo do genero do comentario a seguir para a persistencia de dados e correta comunicaçao com o "service holder"
 /* 
 const API_BASE = 'https://projeto-estagio-sys-fuc-aval.onrender.com';
