@@ -1,16 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const { body, param, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
 const pool = require('./data/database/db');
 const fs = require('fs');
 const path = require('path');
+
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 const fucDir = path.join(__dirname, 'data/fucs');
 
-// Ensure FUCs directory exists
+// assegura diretoria de FUCs existe
 if (!fs.existsSync(fucDir)) {
   fs.mkdirSync(fucDir, { recursive: true });
 }
@@ -31,13 +31,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-
-app.use(limiter);
 app.use(express.json());
 
 // Error handling middleware
@@ -83,14 +76,22 @@ app.post('/api/fucs/rascunho', [
   body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
+
+  //veirifcaçao de dados
+  console.log('Dados recebidos para rascunho:', { titulo, tipo, campos, conteudo });
+
+  // Simular origem do .txt (user poderia estar na sessão/autenticação num sistema real)
+  const importadoPor = req.headers['x-importado-por'] || 'admin'; // fallback para "admin"
+  const path = `importado_txt_${importadoPor}_${Date.now()}.txt`;
+
   try {
     const { rows } = await pool.query(
-      'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, false) RETURNING *',
-      [titulo, tipo, JSON.stringify(campos), conteudo]
+      'INSERT INTO fucs (titulo, tipo, campos, conteudo, path, enabled) VALUES ($1, $2, $3, $4, $5, false) RETURNING *',
+      [titulo, tipo, JSON.stringify(campos), conteudo, path]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('Erro ao salvar rascunho:', err);
+    console.error('Erro ao salvar rascunho:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao salvar rascunho' });
   }
 });
@@ -103,14 +104,20 @@ app.post('/api/fucs/finalizar', [
   body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
+
+
+
   try {
+    //veirifcaçao de dados
+    console.log('Dados recebidos para finalizar:', { titulo, tipo, campos, conteudo });
+
     const { rows } = await pool.query(
       'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, true) RETURNING *',
       [titulo, tipo, JSON.stringify(campos), conteudo]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('Erro ao finalizar FUC:', err);
+    console.error('Erro ao finalizar FUC:', err.message, err.stack);
     res.status(500).json({ error: 'Erro ao finalizar FUC' });
   }
 });
