@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Home, FileText, BarChart2, UserPlus, LogOut, FileEdit } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
-
 export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -86,3 +85,5 @@ export default function Navbar() {
     </nav>
   )
 }
+
+
