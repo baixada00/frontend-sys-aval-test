@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import axios from 'axios'
 import { FileText, CheckCircle, Save, AlertCircle } from 'lucide-react'
+import { API_BASE } from '../config/api'
 
 interface FUC {
     title: string
@@ -39,8 +40,8 @@ const AvaliacaoFUC = () => {
             try {
                 setLoading(true)
                 const [fucResponse, relatoriosResponse] = await Promise.all([
-                    axios.get(`https://projeto-estagio-sys-fuc-aval.onrender.com/api/fucs/${id}`),
-                    axios.get(`https://projeto-estagio-sys-fuc-aval.onrender.com/api/relatorios/${id}`)
+                    axios.get(`${API_BASE}/api/fucs/${id}`),
+                    axios.get(`${API_BASE}/api/relatorios/${id}`)
                 ])
 
                 const fucEncontrada = fucResponse.data
@@ -160,7 +161,7 @@ const AvaliacaoFUC = () => {
         if (!avaliador) return
 
         try {
-            await axios.post('https://projeto-estagio-sys-fuc-aval.onrender.com/api/relatorios', {
+            await axios.post(`${API_BASE}/api/relatorios`, {
                 fuc: id,
                 avaliador,
                 status: "gravado",
@@ -178,7 +179,7 @@ const AvaliacaoFUC = () => {
         if (!avaliador) return
 
         try {
-            await axios.post('https://projeto-estagio-sys-fuc-aval.onrender.com/api/relatorios', {
+            await axios.post(`${API_BASE}/api/relatorios`, {
                 fuc: id,
                 avaliador,
                 status: "submetido",
