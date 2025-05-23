@@ -3,13 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { FileText, CheckCircle, Save, RefreshCw, AlertCircle } from 'lucide-react'
 import { useUser } from '../context/UserContext'
-
-
-//TODO: METEr as paginas em algo do genero do comentario a seguir para a persistencia de dados e correta comunicaçao com o "service holder"
-/* 
-const API_BASE = 'https://projeto-estagio-sys-fuc-aval.onrender.com';
-axios.get(`${API_BASE}/api/fucs/files/unloaded`)
-*/
+import { API_BASE } from '../config/api'
 
 interface Template {
     id: number
@@ -43,7 +37,7 @@ const Dashboard = () => {
         try {
             setLoading(true)
             setError(null)
-            const response = await axios.get("/api/dashboard")
+            const response = await axios.get(`${API_BASE}/api/dashboard`)
 
             const rawFucs: FUC[] = Array.isArray(response.data.fucs) ? response.data.fucs : []
 
@@ -53,7 +47,7 @@ const Dashboard = () => {
                         .filter((fuc: FUC) => fuc.enabled)
                         .map(async (fuc: FUC) => {
                             try {
-                                const templatesResponse = await axios.get(`/api/templates?fuc_id=${fuc.id}`)
+                                const templatesResponse = await axios.get(`${API_BASE}/api/templates?fuc_id=${fuc.id}`)
                                 return {
                                     ...fuc,
                                     templates: templatesResponse.data
@@ -66,6 +60,7 @@ const Dashboard = () => {
                 )
                 setDashboardData({ fucs: fucsWithTemplates })
             } else {
+                // For admin and gestor, show all FUCs but without evaluation capability
                 setDashboardData({ fucs: rawFucs })
             }
         } catch (error) {
@@ -75,7 +70,6 @@ const Dashboard = () => {
             setLoading(false)
         }
     }
-
 
     useEffect(() => {
         fetchDashboardData()
@@ -176,5 +170,3 @@ const Dashboard = () => {
         </div>
     )
 }
-
-export default Dashboard
