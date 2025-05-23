@@ -92,7 +92,7 @@ const AdminAddUser = () => {
                 setSelectedType(null)
                 setStep('type')
             } catch (error) {
-                console.error('Erro ao criar utilizador:', error)
+                console.error('Error to criate user:', error)
                 alert((error as Error).message)
             }
         }
@@ -108,7 +108,7 @@ const AdminAddUser = () => {
                 body: JSON.stringify({ role: newRole })
             })
 
-            if (!response.ok) throw new Error('Failed to update user role')
+            if (!response.ok) throw new Error('Falha ao atualizar cargo do user')
             await fetchUsers()
         } catch (error) {
             console.error('Error updating user role:', error)
@@ -117,14 +117,14 @@ const AdminAddUser = () => {
     }
 
     const handleDeleteUser = async (userId: number) => {
-        if (!confirm('Are you sure you want to delete this user?')) return
+        if (!confirm('Tem a certeza que quer apagar este user?')) return
 
         try {
             const response = await fetch(`https://projeto-estagio-sys-fuc-aval.onrender.com/api/users/${userId}`, {
                 method: 'DELETE'
             })
 
-            if (!response.ok) throw new Error('Failed to delete user')
+            if (!response.ok) throw new Error('Falha ao apagar user')
             await fetchUsers()
         } catch (error) {
             console.error('Error deleting user:', error)
@@ -138,14 +138,14 @@ const AdminAddUser = () => {
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                         <UserPlus className="h-6 w-6 text-purple-600" />
-                        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">Gestão de Usuários</h1>
                     </div>
                     <button
                         onClick={fetchUsers}
                         className="flex items-center px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100"
                     >
                         <RefreshCw className="w-4 h-4 mr-2" />
-                        Refresh
+                        Atualizar
                     </button>
                 </div>
 
@@ -155,16 +155,16 @@ const AdminAddUser = () => {
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Username
+                                    Nome de Usuário
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Role
+                                    Cargo
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Created At
+                                    Criado a
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
+                                    Ações
                                 </th>
                             </tr>
                         </thead>
@@ -180,7 +180,7 @@ const AdminAddUser = () => {
                                             onChange={(e) => handleUpdateRole(user.id, e.target.value)}
                                             className="text-sm text-gray-900 border border-gray-300 rounded-md px-2 py-1"
                                         >
-                                            <option value="admin">Administrator</option>
+                                            <option value="admin">Administrador</option>
                                             <option value="gestor">Gestor</option>
                                             <option value="avaliador">Avaliador</option>
                                         </select>
@@ -208,14 +208,14 @@ const AdminAddUser = () => {
                 <div className="flex items-center gap-3 mb-6">
                     <UserPlus className="h-6 w-6 text-purple-600" />
                     <h2 className="text-xl font-bold text-gray-900">
-                        Add New User
+                        Adic. Novo User
                     </h2>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                            Username
+                            Nome de Usuário
                         </label>
                         <input
                             type="text"
@@ -229,7 +229,7 @@ const AdminAddUser = () => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Role
+                            Cargo
                         </label>
                         <div className="grid grid-cols-3 gap-4">
                             {Object.entries(userTypes).map(([type, config]) => (
@@ -237,11 +237,10 @@ const AdminAddUser = () => {
                                     key={type}
                                     type="button"
                                     onClick={() => handleTypeSelect(type)}
-                                    className={`flex items-center gap-2 p-3 rounded-lg border ${
-                                        selectedType === type
-                                            ? 'border-purple-500 bg-purple-50'
-                                            : 'border-gray-200 hover:border-purple-500'
-                                    }`}
+                                    className={`flex items-center gap-2 p-3 rounded-lg border ${selectedType === type
+                                        ? 'border-purple-500 bg-purple-50'
+                                        : 'border-gray-200 hover:border-purple-500'
+                                        }`}
                                 >
                                     {config.icon}
                                     <span className="text-sm font-medium">{config.label}</span>
@@ -256,7 +255,7 @@ const AdminAddUser = () => {
                             className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition duration-200"
                             disabled={!selectedType || !name}
                         >
-                            Add User
+                            Adicionar Usuário
                         </button>
                     </div>
                 </form>
