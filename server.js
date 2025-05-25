@@ -400,6 +400,64 @@ app.post('/api/users/verify', [
   }
 });
 
+//endpoints relatorios e avaliacoes
+
+// Endpoint 1: Todos os relatórios
+app.get('/api/relatorios', async (req, res) => {
+  try {
+    const query = `
+          SELECT 
+              a.id,
+              a.fuc_id,
+              u.username AS avaliador,
+              CASE 
+                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
+                  ELSE 'gravado'
+              END AS status,
+              a.created_at AS data,
+              COALESCE(a.respostas->>'comentario', '') AS comentario
+          FROM avaliacoes a
+          LEFT JOIN users u ON u.id = a.avaliador_id
+          ORDER BY a.created_at DESC
+      `;
+    const { rows } = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error("Erro ao buscar relatórios:", error);
+    res.status(500).json({ error: "Erro ao buscar relatórios" });
+  }
+});
+
+// Endpoint 2: Relatórios por FUC especifica
+app.get('/api/relatorios/:fucId', async (req, res) => {
+  const { fucId } = req.params;
+
+  try {
+    const query = `
+          SELECT 
+              a.id,
+              a.fuc_id,
+              u.username AS avaliador,
+              CASE 
+                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
+                  ELSE 'gravado'
+              END AS status,
+              a.created_at AS data,
+              COALESCE(a.respostas->>'comentario', '') AS comentario
+          FROM avaliacoes a
+          LEFT JOIN users u ON u.id = a.avaliador_id
+          WHERE a.fuc_id = $1
+          ORDER BY a.created_at DESC
+      `;
+    const { rows } = await pool.query(query, [fucId]);
+    res.json(rows);
+  } catch (error) {
+    console.error("Erro ao buscar relatórios da FUC:", error);
+    res.status(500).json({ error: "Erro ao buscar relatórios da FUC" });
+  }
+});
+
+
 app.use(handleErrors);
 
 app.listen(PORT, () => {
