@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { FileText, RefreshCw, AlertCircle, Calendar, ToggleLeft as Toggle, Plus, Upload } from 'lucide-react'
 import { useUser } from '../context/UserContext'
-
 const API_BASE = 'https://projeto-estagio-sys-fuc-aval.onrender.com';
 
 interface FUC {
