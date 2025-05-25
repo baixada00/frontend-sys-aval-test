@@ -40,13 +40,6 @@ export default function Navbar() {
                   <FileText className="w-4 h-4 mr-2" />
                   Gestão FUC
                 </Link>
-                <Link
-                  to="/gerir-template"
-                  className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/gerir-template')}`}
-                >
-                  <FileEdit className="w-4 h-4 mr-2" />
-                  Template FUC
-                </Link>
               </>
             )}
             {user.type === 'admin' && (
@@ -62,7 +55,7 @@ export default function Navbar() {
                   to="/admin/add-user"
                   className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/admin/add-user')}`}
                 >
-                  <BarChart2 className="w-4 h-4 mr-2" />
+                  <UserPlus className="w-4 h-4 mr-2" />
                   Adicionar User
                 </Link>
               </>
@@ -85,5 +78,3 @@ export default function Navbar() {
     </nav>
   )
 }
-
-

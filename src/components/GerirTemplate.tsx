@@ -30,7 +30,7 @@ interface Template {
 }
 
 const GerirTemplate = () => {
-    const { id } = useParams<{ id: string }>()
+    const { id } = useParams<{ id?: string }>()
     const navigate = useNavigate()
     const { user } = useUser()
     const [templates, setTemplates] = useState<Template[]>([])
@@ -44,6 +44,15 @@ const GerirTemplate = () => {
         const fetchData = async () => {
             try {
                 setLoading(true)
+                setError(null)
+
+                // If no id provided, show empty state
+                if (!id) {
+                    setError('Selecione uma FUC para gerenciar templates')
+                    setLoading(false)
+                    return
+                }
+
                 const [templatesRes, fucRes] = await Promise.all([
                     axios.get(`${API_BASE}/api/templates?fuc_id=${id}`),
                     axios.get(`${API_BASE}/api/fucs/${id}`)
@@ -55,7 +64,7 @@ const GerirTemplate = () => {
                 }
             } catch (error) {
                 console.error('Erro ao carregar dados:', error)
-                setError('Não foi possível carregar os dados.')
+                setError('Não foi possível carregar os dados. Verifique se a FUC está ativa.')
             } finally {
                 setLoading(false)
             }
@@ -65,14 +74,14 @@ const GerirTemplate = () => {
     }, [id])
 
     const handleSave = async () => {
-        if (!currentTemplate) return
+        if (!currentTemplate || !id) return
 
         try {
             setSaving(true)
             const templateData = {
                 nome: currentTemplate.nome,
                 conteudo: currentTemplate.conteudo,
-                fuc_id: parseInt(id || '0'),
+                fuc_id: parseInt(id),
                 criado_por: user?.id,
                 campos_avaliacao: currentTemplate.campos_avaliacao
             }
@@ -105,11 +114,13 @@ const GerirTemplate = () => {
     }
 
     const createNewTemplate = () => {
+        if (!id) return
+
         setCurrentTemplate({
             id: 0,
             nome: '',
             conteudo: '',
-            fuc_id: parseInt(id || '0'),
+            fuc_id: parseInt(id),
             criado_por: user?.id || 0,
             created_at: new Date().toISOString(),
             campos_avaliacao: []
@@ -126,7 +137,6 @@ const GerirTemplate = () => {
             const campoIndex = camposAtualizados.findIndex(c => c.campo_id === campoId)
 
             if (campoIndex === -1) {
-                // Add new field
                 camposAtualizados.push({
                     campo_id: campoId,
                     titulo: campos.find(c => c.id === campoId)?.titulo || '',
@@ -134,7 +144,6 @@ const GerirTemplate = () => {
                     opcoes: tipo === 'escolha_multipla' ? ['Adequado', 'Não Adequado', 'Incerteza'] : undefined
                 })
             } else {
-                // Update existing field
                 const tipos = camposAtualizados[campoIndex].tipo_avaliacao
                 const tipoIndex = tipos.indexOf(tipo)
 
