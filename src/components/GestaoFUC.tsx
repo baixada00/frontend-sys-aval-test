@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { FileText, RefreshCw, AlertCircle, Calendar, ToggleLeft as Toggle, Plus, Upload } from 'lucide-react'
 import { useUser } from '../context/UserContext'
-const API_BASE = 'https://projeto-estagio-sys-fuc-aval.onrender.com';
+import { API_BASE } from '../config/api'
 
 interface FUC {
     id: number
@@ -24,11 +24,7 @@ const GestaoFUC = () => {
         try {
             setLoading(true)
             setError(null)
-            const endpoint = user?.type === 'admin'
-                ? `${API_BASE}/api/fucs`
-                : `${API_BASE}/api/fuc-permissions/${user?.id}`
-
-            const response = await axios.get(endpoint)
+            const response = await axios.get(`${API_BASE}/api/fucs`)
             setFucs(Array.isArray(response.data) ? response.data : [])
         } catch (error) {
             console.error("Erro ao procurar FUCs", error)
@@ -52,7 +48,7 @@ const GestaoFUC = () => {
         try {
             await axios.post(`${API_BASE}/api/fucs/from-file`, { filename })
             await fetchFUCs()
-            await fetchUnloadedFUCs()
+            await fetchUnloadedFucs()
         } catch (error) {
             console.error('Erro ao carregar FUC:', error)
             alert('Erro ao carregar a FUC')
@@ -76,7 +72,7 @@ const GestaoFUC = () => {
     useEffect(() => {
         fetchFUCs()
         if (user?.type === 'admin') {
-            fetchUnloadedFUCs()
+            fetchUnloadedFucs()
         }
     }, [user])
 
@@ -115,14 +111,13 @@ const GestaoFUC = () => {
                         <button
                             onClick={() => {
                                 fetchFUCs();
-                                if (user?.type === 'admin') fetchUnloadedFUCs();
+                                if (user?.type === 'admin') fetchUnloadedFucs();
                             }}
                             className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
                         >
                             <RefreshCw className="w-4 h-4 mr-2" />
                             Atualizar Lista
                         </button>
-
                     </div>
                 </div>
 
@@ -177,19 +172,25 @@ const GestaoFUC = () => {
                                     {user?.type === 'admin' && (
                                         <button
                                             onClick={() => toggleFUCStatus(fuc.id, fuc.enabled)}
-                                            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${fuc.enabled
-                                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                }`}
+                                            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
+                                                fuc.enabled
+                                                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
                                         >
                                             <Toggle className="w-4 h-4 mr-2" />
-                                            {fuc.enabled ? 'Ativo' : 'Inativo'}
+                                            {fuc.enabled ? 'Ativa' : 'Inativa'}
                                         </button>
                                     )}
-                                    {(user?.type === 'gestor' || (user?.type === 'admin' && fuc.enabled)) && (
+                                    {(user?.type === 'gestor' || user?.type === 'admin') && (
                                         <Link
                                             to={`/gerir-template/${fuc.id}`}
-                                            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                                            className={`inline-flex items-center px-4 py-2 rounded-md ${
+                                                fuc.enabled
+                                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                                    : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                            }`}
+                                            onClick={(e) => !fuc.enabled && e.preventDefault()}
                                         >
                                             <FileText className="w-4 h-4 mr-2" />
                                             {user.type === 'gestor' ? 'Gerenciar Templates' : 'Ver Templates'}
