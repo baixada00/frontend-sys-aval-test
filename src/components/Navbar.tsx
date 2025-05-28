@@ -1,12 +1,12 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Home, FileText, BarChart2, UserPlus, LogOut, FileEdit } from 'lucide-react'
+import { Home, FileText, BarChart2, UserPlus, LogOut, UserCog, RefreshCw } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
 export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, setUser } = useUser()
+  const { user, setUser, setActiveRole } = useUser()
 
   const isActive = (path: string) => {
     return location.pathname === path ? 'bg-purple-700' : ''
@@ -15,6 +15,11 @@ export default function Navbar() {
   const handleLogout = () => {
     setUser(null)
     navigate('/login')
+  }
+
+  const handleRoleChange = (role: 'admin' | 'gestor' | 'avaliador') => {
+    setActiveRole(role)
+    navigate('/dashboard')
   }
 
   if (!user) return null
@@ -31,7 +36,7 @@ export default function Navbar() {
               <Home className="w-4 h-4 mr-2" />
               Dashboard
             </Link>
-            {(user.type === 'gestor' || user.type === 'admin') && (
+            {(user.activeRole === 'gestor' || user.activeRole === 'admin') && (
               <>
                 <Link
                   to="/gestao-fuc"
@@ -42,7 +47,7 @@ export default function Navbar() {
                 </Link>
               </>
             )}
-            {user.type === 'admin' && (
+            {user.activeRole === 'admin' && (
               <>
                 <Link
                   to="/relatorios"
@@ -62,9 +67,26 @@ export default function Navbar() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm font-medium">
-              {user.name} ({user.type})
-            </span>
+            <div className="relative group">
+              <button className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
+                <UserCog className="w-4 h-4" />
+                {user.name} ({user.activeRole})
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block">
+                {user.roles.map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => handleRoleChange(role)}
+                    className={`block w-full text-left px-4 py-2 text-sm ${
+                      role === user.activeRole ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    Mudar para {role}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button
               onClick={handleLogout}
               className="flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"

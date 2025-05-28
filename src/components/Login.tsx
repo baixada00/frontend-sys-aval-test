@@ -27,14 +27,15 @@ const userTypes: Record<string, UserTypeConfig> = {
 const Login = () => {
     const navigate = useNavigate()
     const { setUser } = useUser()
-    const [selectedType, setSelectedType] = useState<string | null>(null)
+    const [selectedRole, setSelectedRole] = useState<string | null>(null)
     const [username, setUsername] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    const [availableRoles, setAvailableRoles] = useState<string[]>([])
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!selectedType || !username) return
+        if (!selectedRole || !username) return
 
         try {
             setLoading(true)
@@ -46,28 +47,49 @@ const Login = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    username,
-                    role: selectedType
+                    username
                 })
             })
 
             if (!response.ok) {
-                throw new Error('Nome de usuário invalido ou cargo')
+                throw new Error('Nome de usuário invalido')
             }
 
             const userData = await response.json()
+            
+            // Now userData.roles contains all roles for the user
             setUser({
                 id: userData.id,
                 name: userData.username,
-                type: selectedType as 'admin' | 'gestor' | 'avaliador',
+                roles: userData.roles,
+                activeRole: selectedRole as 'admin' | 'gestor' | 'avaliador',
                 username: userData.username
             })
 
             navigate('/dashboard')
         } catch (err) {
-            setError('Combinação Inválida de nome de usuário e cargo')
+            setError('Usuário não encontrado')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleUsernameCheck = async (username: string) => {
+        if (!username) return
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/users/roles/${username}`)
+            if (response.ok) {
+                const data = await response.json()
+                setAvailableRoles(data.roles)
+                setError(null)
+            } else {
+                setAvailableRoles([])
+                setError('Usuário não encontrado')
+            }
+        } catch (err) {
+            setAvailableRoles([])
+            setError('Erro ao verificar usuário')
         }
     }
 
@@ -85,28 +107,6 @@ const Login = () => {
 
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Selecione Tipo de Cargo
-                            </label>
-                            <div className="grid grid-cols-3 gap-3">
-                                {Object.entries(userTypes).map(([type, config]) => (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => setSelectedType(type)}
-                                        className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${selectedType === type
-                                            ? 'border-purple-500 bg-purple-50 text-purple-700'
-                                            : 'border-gray-200 hover:border-purple-300 text-gray-600 hover:text-purple-600'
-                                            }`}
-                                    >
-                                        {config.icon}
-                                        <span className="mt-2 text-xs font-medium">{config.label}</span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
                             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
                                 Nome de Usuário
                             </label>
@@ -114,11 +114,39 @@ const Login = () => {
                                 type="text"
                                 id="username"
                                 value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                onChange={(e) => {
+                                    setUsername(e.target.value)
+                                    handleUsernameCheck(e.target.value)
+                                }}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 placeholder="Digite o seu nome de usuário"
                             />
                         </div>
+
+                        {availableRoles.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Selecione seu Cargo
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {availableRoles.map((role) => (
+                                        <button
+                                            key={role}
+                                            type="button"
+                                            onClick={() => setSelectedRole(role)}
+                                            className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${
+                                                selectedRole === role
+                                                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                                    : 'border-gray-200 hover:border-purple-300 text-gray-600 hover:text-purple-600'
+                                            }`}
+                                        >
+                                            {userTypes[role].icon}
+                                            <span className="mt-2 text-xs font-medium">{userTypes[role].label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="bg-red-50 border-l-4 border-red-400 p-4">
@@ -132,7 +160,7 @@ const Login = () => {
 
                         <button
                             type="submit"
-                            disabled={!selectedType || !username || loading}
+                            disabled={!selectedRole || !username || loading || availableRoles.length === 0}
                             className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                             {loading ? 'A entrar...' : 'Entrar'}
@@ -143,5 +171,3 @@ const Login = () => {
         </div>
     )
 }
-
-export default Login

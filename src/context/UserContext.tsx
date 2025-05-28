@@ -3,13 +3,15 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 interface User {
     id: number
     name: string
-    type: 'admin' | 'gestor' | 'avaliador'
+    roles: ('admin' | 'gestor' | 'avaliador')[]
+    activeRole: 'admin' | 'gestor' | 'avaliador'
     username: string
 }
 
 interface UserContextType {
     user: User | null
     setUser: (user: User | null) => void
+    setActiveRole: (role: 'admin' | 'gestor' | 'avaliador') => void
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
@@ -33,8 +35,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setUserState(newUser)
     }
 
+    const setActiveRole = (role: 'admin' | 'gestor' | 'avaliador') => {
+        if (user && user.roles.includes(role)) {
+            const updatedUser = { ...user, activeRole: role }
+            sessionStorage.setItem('fuc_user', JSON.stringify(updatedUser))
+            setUserState(updatedUser)
+        }
+    }
+
     return (
-        <UserContext.Provider value={{ user, setUser }}>
+        <UserContext.Provider value={{ user, setUser, setActiveRole }}>
             {children}
         </UserContext.Provider>
     )
