@@ -5,7 +5,6 @@ const pool = require('./data/database/db');
 const fs = require('fs');
 const path = require('path');
 
-
 const app = express();
 const PORT = process.env.PORT || 10000;
 const fucDir = path.join(__dirname, 'data/fucs');
@@ -48,418 +47,138 @@ const validate = (req, res, next) => {
   next();
 };
 
-// Get unloaded FUC files
-app.get('/api/fucs/files/unloaded', async (req, res) => {
-  try {
-    const { rows: existingFUCs } = await pool.query('SELECT path FROM fucs');
-    const existingPaths = existingFUCs.map(row => row.path);
-
-    const files = fs.readdirSync(fucDir).filter(f => f.endsWith('.txt'));
-    const notLoaded = files.filter(file => !existingPaths.includes(file));
-
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-
-    res.json(notLoaded);
-  } catch (err) {
-    console.error('Error listing unloaded FUC files:', err);
-    res.status(500).json({ error: 'Error listing files' });
-  }
-});
-
-// Save FUC draft
-app.post('/api/fucs/rascunho', [
-  body('titulo').notEmpty().trim().withMessage('Título é obrigatório'),
-  body('tipo').notEmpty().trim().withMessage('Tipo é obrigatório'),
-  body('campos').isArray().withMessage('Campos devem ser um array'),
-  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
+// Modified user verification endpoint
+app.post('/api/users/verify', [
+  body('username').notEmpty().trim().withMessage('Username é obrigatório'),
 ], validate, async (req, res) => {
-  const { titulo, tipo, campos, conteudo } = req.body;
-
-  //veirifcaçao de dados
-  console.log('Dados recebidos para rascunho:', { titulo, tipo, campos, conteudo });
-
-  // Simular origem do .txt (user poderia estar na sessão/autenticação num sistema real)
-  const importadoPor = req.headers['x-importado-por'] || 'admin'; // fallback para "admin"
-  const path = `importado_txt_${importadoPor}_${Date.now()}.txt`;
+  const { username } = req.body;
 
   try {
-    const { rows } = await pool.query(
-      'INSERT INTO fucs (titulo, tipo, campos, conteudo, path, enabled) VALUES ($1, $2, $3, $4, $5, false) RETURNING *',
-      [titulo, tipo, JSON.stringify(campos), conteudo, path]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao salvar rascunho:', err.message, err.stack);
-    res.status(500).json({ error: 'Erro ao salvar rascunho' });
-  }
-});
-
-// Finalize FUC
-app.post('/api/fucs/finalizar', [
-  body('titulo').notEmpty().trim().withMessage('Título é obrigatório'),
-  body('tipo').notEmpty().trim().withMessage('Tipo é obrigatório'),
-  body('campos').isArray().withMessage('Campos devem ser um array'),
-  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
-], validate, async (req, res) => {
-  const { titulo, tipo, campos, conteudo } = req.body;
-
-
-
-  try {
-    //veirifcaçao de dados
-    console.log('Dados recebidos para finalizar:', { titulo, tipo, campos, conteudo });
-
-    const { rows } = await pool.query(
-      'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, true) RETURNING *',
-      [titulo, tipo, JSON.stringify(campos), conteudo]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao finalizar FUC:', err.message, err.stack);
-    res.status(500).json({ error: 'Erro ao finalizar FUC' });
-  }
-});
-
-// Load FUC from file
-app.post('/api/fucs/from-file', [
-  body('filename').notEmpty().trim().matches(/\.txt$/).withMessage('Invalid filename')
-], validate, async (req, res) => {
-  const { filename } = req.body;
-  const filePath = path.join(fucDir, filename);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'File not found' });
-  }
-
-  try {
-    const conteudo = fs.readFileSync(filePath, 'utf-8');
-    const titulo = filename.replace('.txt', '');
-
-    const { rows } = await pool.query(
-      'INSERT INTO fucs (titulo, conteudo, path, enabled) VALUES ($1, $2, $3, false) RETURNING *',
-      [titulo, conteudo, filename]
+    // Get user and their roles
+    const userQuery = await pool.query(
+      `SELECT u.id, u.username, array_agg(ur.role) as roles 
+       FROM users u 
+       LEFT JOIN user_roles ur ON u.id = ur.user_id 
+       WHERE u.username = $1 
+       GROUP BY u.id, u.username`,
+      [username]
     );
 
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Error inserting FUC:', err);
-    res.status(500).json({ error: 'Error inserting FUC' });
-  }
-});
-
-// Get specific FUC
-app.get('/api/fucs/:id', [
-  param('id').isInt().withMessage('ID must be an integer')
-], validate, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const { rows } = await pool.query('SELECT * FROM fucs WHERE id = $1', [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'FUC não encontrada' });
+    if (userQuery.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao buscar FUC:', err);
-    res.status(500).json({ error: 'Erro ao buscar FUC' });
-  }
-});
 
-// Get all FUCs
-app.get('/api/fucs', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM fucs ORDER BY created_at DESC');
-    res.json(rows);
-  } catch (err) {
-    console.error('Erro ao pesquisar FUCs:', err);
-    res.status(500).json({ error: 'Erro ao pesquisar FUCs na BD' });
-  }
-});
-
-// Update FUC status
-app.patch('/api/fucs/:id', [
-  param('id').isInt().withMessage('ID must be an integer'),
-  body('enabled').isBoolean().withMessage('enabled must be a boolean')
-], validate, async (req, res) => {
-  const { id } = req.params;
-  const { enabled } = req.body;
-  try {
-    const { rowCount } = await pool.query(
-      'UPDATE fucs SET enabled = $1 WHERE id = $2 RETURNING *',
-      [enabled, id]
-    );
-    if (!rowCount) {
-      return res.status(404).json({ error: 'FUC não encontrada' });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Erro ao atualizar status da FUC:', err);
-    res.status(500).json({ error: 'Erro ao atualizar status da FUC' });
-  }
-});
-
-// Get dashboard data
-app.get('/api/dashboard', async (req, res) => {
-  try {
-    const { rows: fucs } = await pool.query(`
-      SELECT f.*, 
-        COUNT(DISTINCT CASE WHEN a.respostas IS NOT NULL THEN a.id END) as avaliacoes_count
-      FROM fucs f
-      LEFT JOIN avaliacoes a ON f.id = a.fuc_id
-      GROUP BY f.id
-      ORDER BY f.created_at DESC
-    `);
-
+    const user = userQuery.rows[0];
     res.json({
-      titulo: "Sistema de Avaliação de FUCs",
-      fucs: fucs.map(fuc => ({
-        id: fuc.id,
-        nome: fuc.titulo,
-        link: `/avaliacao-fuc/${fuc.id}`,
-        submetidos: parseInt(fuc.avaliacoes_count) || 0,
-        enabled: fuc.enabled
-      }))
+      id: user.id,
+      username: user.username,
+      roles: user.roles
     });
   } catch (err) {
-    console.error('Erro ao buscar dados do dashboard:', err);
-    res.status(500).json({ error: 'Erro ao carregar dashboard' });
+    console.error('Erro ao verificar usuário:', err);
+    res.status(500).json({ error: 'Erro interno ao verificar usuário' });
   }
 });
 
-// Templates CRUD
-app.get('/api/templates', async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT t.*, u.username as criador_nome 
-      FROM templates t 
-      LEFT JOIN users u ON t.criado_por = u.id
-      ORDER BY t.created_at DESC
-    `);
-    res.json(rows);
-  } catch (err) {
-    console.error('Erro ao buscar templates:', err);
-    res.status(500).json({ error: 'Erro ao buscar templates' });
-  }
-});
+// New endpoint to get user roles
+app.get('/api/users/roles/:username', async (req, res) => {
+  const { username } = req.params;
 
-app.post('/api/templates', [
-  body('nome').notEmpty().trim().withMessage('Nome é obrigatório'),
-  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório'),
-  body('fuc_id').isInt().withMessage('FUC ID deve ser um número'),
-  body('criado_por').isInt().withMessage('Criador ID deve ser um número')
-], validate, async (req, res) => {
-  const { nome, conteudo, fuc_id, criado_por } = req.body;
   try {
-    const { rows } = await pool.query(
-      'INSERT INTO templates (nome, conteudo, fuc_id, criado_por) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nome, conteudo, fuc_id, criado_por]
+    const result = await pool.query(
+      `SELECT array_agg(ur.role) as roles 
+       FROM users u 
+       LEFT JOIN user_roles ur ON u.id = ur.user_id 
+       WHERE u.username = $1 
+       GROUP BY u.id`,
+      [username]
     );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao criar template:', err);
-    res.status(500).json({ error: 'Erro ao criar template' });
-  }
-});
 
-app.put('/api/templates/:id', [
-  param('id').isInt().withMessage('ID must be an integer'),
-  body('nome').notEmpty().trim().withMessage('Nome é obrigatório'),
-  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
-], validate, async (req, res) => {
-  const { id } = req.params;
-  const { nome, conteudo } = req.body;
-  try {
-    const { rows } = await pool.query(
-      'UPDATE templates SET nome = $1, conteudo = $2 WHERE id = $3 RETURNING *',
-      [nome, conteudo, id]
-    );
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Template não encontrado' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
     }
-    res.json(rows[0]);
+
+    res.json({ roles: result.rows[0].roles });
   } catch (err) {
-    console.error('Erro ao atualizar template:', err);
-    res.status(500).json({ error: 'Erro ao atualizar template' });
+    console.error('Erro ao buscar roles:', err);
+    res.status(500).json({ error: 'Erro ao buscar roles do usuário' });
   }
 });
 
-app.get('/api/templates/:id', [
-  param('id').isInt().withMessage('ID must be an integer')
-], validate, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const { rows } = await pool.query(`
-      SELECT t.*, u.username as criador_nome 
-      FROM templates t 
-      LEFT JOIN users u ON t.criado_por = u.id 
-      WHERE t.id = $1
-    `, [id]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Template não encontrado' });
-    }
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao buscar template:', err);
-    res.status(500).json({ error: 'Erro ao buscar template' });
-  }
-});
-
-// Users endpoints
+// Modified user creation endpoint
 app.post('/api/users', [
   body('username').notEmpty().trim().withMessage('Username é obrigatório'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+  body('roles').isArray().withMessage('Roles deve ser um array')
 ], validate, async (req, res) => {
-  const { username, role } = req.body;
+  const { username, roles } = req.body;
 
   try {
-    const { rows } = await pool.query(
-      'INSERT INTO users (username, role) VALUES ($1, $2) RETURNING id, username, role, created_at',
-      [username, role]
+    await pool.query('BEGIN');
+
+    // Insert user
+    const userResult = await pool.query(
+      'INSERT INTO users (username) VALUES ($1) RETURNING id',
+      [username]
     );
-    res.status(201).json(rows[0]);
+    
+    const userId = userResult.rows[0].id;
+
+    // Insert roles
+    for (const role of roles) {
+      await pool.query(
+        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
+        [userId, role]
+      );
+    }
+
+    await pool.query('COMMIT');
+
+    res.status(201).json({
+      id: userId,
+      username,
+      roles
+    });
   } catch (err) {
-    console.error('Erro ao criar utilizador:', err);
+    await pool.query('ROLLBACK');
+    console.error('Erro ao criar usuário:', err);
     if (err.code === '23505') {
       res.status(409).json({ error: 'Username já existe.' });
     } else {
-      res.status(500).json({ error: 'Erro ao criar utilizador' });
+      res.status(500).json({ error: 'Erro ao criar usuário' });
     }
   }
 });
 
-app.get('/api/users', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT id, username, role, created_at FROM users ORDER BY username'
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('Erro ao listar utilizadores:', err);
-    res.status(500).json({ error: 'Erro ao listar utilizadores' });
-  }
-});
-
-app.patch('/api/users/:id', [
+// Modified user role update endpoint
+app.patch('/api/users/:id/roles', [
   param('id').isInt().withMessage('ID must be an integer'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+  body('roles').isArray().withMessage('Roles deve ser um array')
 ], validate, async (req, res) => {
   const { id } = req.params;
-  const { role } = req.body;
+  const { roles } = req.body;
 
   try {
-    const result = await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    await pool.query('BEGIN');
+
+    // Remove existing roles
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
+
+    // Add new roles
+    for (const role of roles) {
+      await pool.query(
+        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
+        [id, role]
+      );
     }
-    res.json({ message: 'Utilizador atualizado com sucesso' });
+
+    await pool.query('COMMIT');
+    res.json({ message: 'Roles atualizadas com sucesso' });
   } catch (err) {
+    await pool.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ error: 'Erro ao atualizar utilizador' });
+    res.status(500).json({ error: 'Erro ao atualizar roles' });
   }
 });
 
-app.delete('/api/users/:id', [
-  param('id').isInt().withMessage('ID must be an integer')
-], validate, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado' });
-    }
-    res.status(204).send();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erro ao apagar utilizador' });
-  }
-});
-
-app.post('/api/users/verify', [
-  body('username').notEmpty().trim().withMessage('Username é obrigatório'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
-], validate, async (req, res) => {
-  const { username, role } = req.body;
-
-  try {
-    const { rows } = await pool.query(
-      'SELECT id, username, role FROM users WHERE username = $1 AND role = $2',
-      [username, role]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado ou role incorreta' });
-    }
-
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('Erro ao verificar utilizador:', err);
-    res.status(500).json({ error: 'Erro interno ao verificar utilizador' });
-  }
-});
-
-//endpoints relatorios e avaliacoes
-
-// Endpoint 1: Todos os relatórios
-app.get('/api/relatorios', async (req, res) => {
-  try {
-    const query = `
-          SELECT 
-              a.id,
-              a.fuc_id,
-              u.username AS avaliador,
-              CASE 
-                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
-                  ELSE 'gravado'
-              END AS status,
-              a.created_at AS data,
-              COALESCE(a.respostas->>'comentario', '') AS comentario
-          FROM avaliacoes a
-          LEFT JOIN users u ON u.id = a.avaliador_id
-          ORDER BY a.created_at DESC
-      `;
-    const { rows } = await pool.query(query);
-    res.json(rows);
-  } catch (error) {
-    console.error("Erro ao buscar relatórios:", error);
-    res.status(500).json({ error: "Erro ao buscar relatórios" });
-  }
-});
-
-// Endpoint 2: Relatórios por FUC especifica
-app.get('/api/relatorios/:fucId', async (req, res) => {
-  const { fucId } = req.params;
-
-  try {
-    const query = `
-          SELECT 
-              a.id,
-              a.fuc_id,
-              u.username AS avaliador,
-              CASE 
-                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
-                  ELSE 'gravado'
-              END AS status,
-              a.created_at AS data,
-              COALESCE(a.respostas->>'comentario', '') AS comentario
-          FROM avaliacoes a
-          LEFT JOIN users u ON u.id = a.avaliador_id
-          WHERE a.fuc_id = $1
-          ORDER BY a.created_at DESC
-      `;
-    const { rows } = await pool.query(query, [fucId]);
-    res.json(rows);
-  } catch (error) {
-    console.error("Erro ao buscar relatórios da FUC:", error);
-    res.status(500).json({ error: "Erro ao buscar relatórios da FUC" });
-  }
-});
-
-
-app.use(handleErrors);
-
-app.listen(PORT, () => {
-  console.log(`Servidor online na porta ${PORT}`);
-});
+// Rest of your existing endpoints...
+[Previous code continues unchanged...]
