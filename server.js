@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const fucDir = path.join(__dirname, 'data/fucs');
 
+
 // assegura diretoria de FUCs existe
 if (!fs.existsSync(fucDir)) {
   fs.mkdirSync(fucDir, { recursive: true });
