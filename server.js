@@ -76,7 +76,11 @@ app.post('/api/fucs/rascunho', [
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
 
-  const importadoPor = req.headers['x-importado-por'] || 'admin';
+  //veirifcaçao de dados
+  console.log('Dados recebidos para rascunho:', { titulo, tipo, campos, conteudo });
+
+  // Simular origem do .txt (user poderia estar na sessão/autenticação num sistema real)
+  const importadoPor = req.headers['x-importado-por'] || 'admin'; // fallback para "admin"
   const path = `importado_txt_${importadoPor}_${Date.now()}.txt`;
 
   try {
@@ -100,7 +104,12 @@ app.post('/api/fucs/finalizar', [
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
 
+
+
   try {
+    //veirifcaçao de dados
+    console.log('Dados recebidos para finalizar:', { titulo, tipo, campos, conteudo });
+
     const { rows } = await pool.query(
       'INSERT INTO fucs (titulo, tipo, campos, conteudo, enabled) VALUES ($1, $2, $3, $4, true) RETURNING *',
       [titulo, tipo, JSON.stringify(campos), conteudo]
@@ -299,16 +308,28 @@ app.get('/api/templates/:id', [
 // Users endpoints
 app.post('/api/users', [
   body('username').notEmpty().trim().withMessage('Username é obrigatório'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+  body('roles').isArray({ min: 1 }).withMessage('Pelo menos um role deve ser fornecido'),
+  body('roles.*').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
 ], validate, async (req, res) => {
-  const { username, role } = req.body;
+  const { username, roles } = req.body;
 
   try {
+    // Criar utilizador
     const { rows } = await pool.query(
-      'INSERT INTO users (username, role) VALUES ($1, $2) RETURNING id, username, role, created_at',
-      [username, role]
+      'INSERT INTO users (username) VALUES ($1) RETURNING id, username, created_at',
+      [username]
     );
-    res.status(201).json(rows[0]);
+    const user = rows[0];
+
+    // Inserir roles
+    for (const role of roles) {
+      await pool.query(
+        'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
+        [user.id, role]
+      );
+    }
+
+    res.status(201).json({ ...user, roles });
   } catch (err) {
     console.error('Erro ao criar utilizador:', err);
     if (err.code === '23505') {
@@ -319,47 +340,53 @@ app.post('/api/users', [
   }
 });
 
+// Obter todos os utilizadores com os seus cargos
 app.get('/api/users', async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      'SELECT id, username, role, created_at FROM users ORDER BY username'
-    );
-    res.json(rows);
+    const { rows: users } = await pool.query('SELECT id, username, created_at FROM users ORDER BY username');
+    for (const user of users) {
+      const rolesRes = await pool.query('SELECT role FROM user_roles WHERE user_id = $1', [user.id]);
+      user.roles = rolesRes.rows.map(r => r.role);
+    }
+    res.json(users);
   } catch (err) {
     console.error('Erro ao listar utilizadores:', err);
     res.status(500).json({ error: 'Erro ao listar utilizadores' });
   }
 });
 
+// Atualizar cargos de um utilizador
 app.patch('/api/users/:id', [
-  param('id').isInt().withMessage('ID must be an integer'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+  param('id').isInt().withMessage('ID inválido'),
+  body('roles').isArray({ min: 1 }).withMessage('Pelo menos um role deve ser fornecido'),
+  body('roles.*').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
 ], validate, async (req, res) => {
   const { id } = req.params;
-  const { role } = req.body;
+  const { roles } = req.body;
 
   try {
-    const result = await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado' });
+    // Apagar cargos antigos
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
+
+    // Inserir novos cargos
+    for (const role of roles) {
+      await pool.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [id, role]);
     }
-    res.json({ message: 'Utilizador atualizado com sucesso' });
+
+    res.json({ message: 'Papéis atualizados com sucesso' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Erro ao atualizar utilizador' });
+    res.status(500).json({ error: 'Erro ao atualizar papéis do utilizador' });
   }
 });
 
+// Apagar utilizador
 app.delete('/api/users/:id', [
-  param('id').isInt().withMessage('ID must be an integer')
+  param('id').isInt().withMessage('ID inválido')
 ], validate, async (req, res) => {
-  const { id } = req.params;
-
   try {
-    const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado' });
-    }
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -367,49 +394,69 @@ app.delete('/api/users/:id', [
   }
 });
 
-// Modified user verification endpoint
 app.post('/api/users/verify', [
   body('username').notEmpty().trim().withMessage('Username é obrigatório')
 ], validate, async (req, res) => {
   const { username } = req.body;
 
   try {
-    const { rows } = await pool.query(
-      'SELECT id, username, role FROM users WHERE username = $1',
+    const userResult = await pool.query(
+      'SELECT id, username FROM users WHERE username = $1',
       [username]
     );
 
-    if (rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'Utilizador não encontrado' });
     }
 
-    res.json(rows[0]);
+    const user = userResult.rows[0];
+
+    const rolesResult = await pool.query(
+      'SELECT role FROM user_roles WHERE user_id = $1',
+      [user.id]
+    );
+
+    const roles = rolesResult.rows.map(r => r.role);
+
+    res.json({ ...user, roles });
   } catch (err) {
     console.error('Erro ao verificar utilizador:', err);
     res.status(500).json({ error: 'Erro interno ao verificar utilizador' });
   }
 });
 
+
 app.post('/api/users/verify-role', [
   body('username').notEmpty().trim().withMessage('Username é obrigatório'),
-  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Role inválido')
+  body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Cargo inválido')
 ], validate, async (req, res) => {
   const { username, role } = req.body;
 
   try {
-    const { rows } = await pool.query(
-      'SELECT id, username, role FROM users WHERE username = $1 AND role = $2',
-      [username, role]
+    const userResult = await pool.query(
+      'SELECT id FROM users WHERE username = $1',
+      [username]
     );
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Utilizador não encontrado ou role incorreta' });
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Utilizador não encontrado' });
     }
 
-    res.json(rows[0]);
+    const userId = userResult.rows[0].id;
+
+    const roleCheck = await pool.query(
+      'SELECT 1 FROM user_roles WHERE user_id = $1 AND role = $2',
+      [userId, role]
+    );
+
+    if (roleCheck.rowCount === 0) {
+      return res.status(403).json({ error: 'Utilizador não tem este cargo' });
+    }
+
+    res.json({ userId, username, role });
   } catch (err) {
-    console.error('Erro ao verificar utilizador:', err);
-    res.status(500).json({ error: 'Erro interno ao verificar utilizador' });
+    console.error('Erro ao verificar cargo do utilizador:', err);
+    res.status(500).json({ error: 'Erro interno ao verificar cargo' });
   }
 });
 
@@ -469,6 +516,7 @@ app.get('/api/relatorios/:fucId', async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar relatórios da FUC" });
   }
 });
+
 
 app.use(handleErrors);
 
