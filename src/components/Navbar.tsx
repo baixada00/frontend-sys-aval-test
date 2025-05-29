@@ -77,10 +77,9 @@ export default function Navbar() {
                 {user.roles.map((role) => (
                   <button
                     key={role}
-                    onClick={() => handleRoleChange(role)}
-                    className={`block w-full text-left px-4 py-2 text-sm ${
-                      role === user.activeRole ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                    onClick={() => handleRoleChange(role as 'admin' | 'gestor' | 'avaliador')}
+                    className={`block w-full text-left px-4 py-2 text-sm ${role === user.activeRole ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-100'
+                      }`}
                   >
                     Mudar para {role}
                   </button>
@@ -100,3 +99,4 @@ export default function Navbar() {
     </nav>
   )
 }
+//is it possible to update relatorios so it looks like the other pages? and tries to list relatorios already made?
