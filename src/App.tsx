@@ -13,45 +13,47 @@ import { UserProvider, useUser } from './context/UserContext'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function AppContent() {
-  const { user } = useUser()
-  const navigate = useNavigate()
+    const { user } = useUser()
+    const navigate = useNavigate()
 
-  useEffect(() => {
-    if (user && (window.location.pathname === '/login' || window.location.pathname === '/')) {
-      const redirectPath = sessionStorage.getItem('redirectPath') || '/dashboard'
-      sessionStorage.removeItem('redirectPath')
-      navigate(redirectPath)
-    }
-  }, [user, navigate])
+    useEffect(() => {
+        if (user) {
+            const redirectPath = sessionStorage.getItem('redirectPath')
+            if (redirectPath && (window.location.pathname === '/login' || window.location.pathname === '/')) {
+                sessionStorage.removeItem('redirectPath')
+                navigate(redirectPath)
+            }
+        }
+    }, [user, navigate])
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        <Routes>
-          <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-          <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
-          <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['gestor', 'admin']} />} />
-          <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['gestor', 'admin']} />} />
-          <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor', 'admin']} />} />
-          <Route path="/avaliacao-fuc/:id" element={<ProtectedRoute element={<AvaliacaoFUC />} />} />
-          <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />
-          <Route path="/admin/add-user" element={<ProtectedRoute element={<AdminAddUser />} allowedRoles={['admin']} />} />
-        </Routes>
-      </main>
-    </div>
-  )
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <Navbar />
+            <main className="container mx-auto px-4 py-8">
+                <Routes>
+                    <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
+                    <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+                    <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
+                    <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['gestor', 'admin']} />} />
+                    <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['gestor', 'admin']} />} />
+                    <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor', 'admin']} />} />
+                    <Route path="/avaliacao-fuc/:id" element={<ProtectedRoute element={<AvaliacaoFUC />} allowedRoles={['avaliador']} />} />
+                    <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />
+                    <Route path="/admin/add-user" element={<ProtectedRoute element={<AdminAddUser />} allowedRoles={['admin']} />} />
+                </Routes>
+            </main>
+        </div>
+    )
 }
 
 function App() {
-  return (
-    <UserProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </UserProvider>
-  )
+    return (
+        <UserProvider>
+            <Router>
+                <AppContent />
+            </Router>
+        </UserProvider>
+    )
 }
 
 export default App

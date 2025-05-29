@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 interface User {
     id: number
     name: string
-    roles: string[]
+    roles: ('admin' | 'gestor' | 'avaliador')[]
     activeRole: 'admin' | 'gestor' | 'avaliador'
     username: string
 }

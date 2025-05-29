@@ -4,7 +4,7 @@ import { useUser } from '../context/UserContext'
 
 interface ProtectedRouteProps {
     element: React.ReactElement
-    allowedRoles?: string[]
+    allowedRoles?: ('admin' | 'gestor' | 'avaliador')[]
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }) => {
@@ -12,12 +12,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }
     const location = useLocation()
 
     if (!user) {
-        // Store the attempted path in sessionStorage before redirecting
         sessionStorage.setItem('redirectPath', location.pathname)
         return <Navigate to="/login" replace />
     }
 
-    if (allowedRoles && !allowedRoles.includes(user.type)) {
+    if (allowedRoles && !allowedRoles.includes(user.activeRole)) {
         return <Navigate to="/dashboard" replace />
     }
 
