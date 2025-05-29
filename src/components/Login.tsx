@@ -56,7 +56,7 @@ const Login = () => {
             }
 
             const userData = await response.json()
-            
+
             // Now userData.roles contains all roles for the user
             setUser({
                 id: userData.id,
@@ -75,23 +75,32 @@ const Login = () => {
     }
 
     const handleUsernameCheck = async (username: string) => {
-        if (!username) return
-        
+        if (!username) return;
+
         try {
-            const response = await fetch(`${API_BASE}/api/users/roles/${username}`)
-            if (response.ok) {
-                const data = await response.json()
-                setAvailableRoles(data.roles)
-                setError(null)
-            } else {
-                setAvailableRoles([])
-                setError('Usuário não encontrado')
+            const response = await fetch(`${API_BASE}/api/users/verify`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
+
+            if (!response.ok) {
+                setAvailableRoles([]);
+                setError('Usuário não encontrado');
+                return;
             }
+
+            const data = await response.json();
+            setAvailableRoles(data.roles || []);
+            setError(null);
         } catch (err) {
-            setAvailableRoles([])
-            setError('Erro ao verificar usuário')
+            setAvailableRoles([]);
+            setError('Erro ao verificar usuário');
         }
-    }
+    };
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center px-4">
@@ -134,11 +143,10 @@ const Login = () => {
                                             key={role}
                                             type="button"
                                             onClick={() => setSelectedRole(role)}
-                                            className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${
-                                                selectedRole === role
-                                                    ? 'border-purple-500 bg-purple-50 text-purple-700'
-                                                    : 'border-gray-200 hover:border-purple-300 text-gray-600 hover:text-purple-600'
-                                            }`}
+                                            className={`flex flex-col items-center justify-center p-4 rounded-lg border transition-all ${selectedRole === role
+                                                ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                                : 'border-gray-200 hover:border-purple-300 text-gray-600 hover:text-purple-600'
+                                                }`}
                                         >
                                             {userTypes[role].icon}
                                             <span className="mt-2 text-xs font-medium">{userTypes[role].label}</span>
