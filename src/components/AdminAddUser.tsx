@@ -11,7 +11,7 @@ interface UserTypeConfig {
 interface User {
     id: number
     username: string
-    role: string
+    roles: string[]
     created_at: string
 }
 
@@ -32,12 +32,11 @@ const userTypes: Record<string, UserTypeConfig> = {
 
 const AdminAddUser = () => {
     const navigate = useNavigate()
-    const { user, setUser } = useUser()
+    const { user } = useUser()
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(false)
-    const [step, setStep] = useState<'type' | 'details'>('type')
-    const [selectedType, setSelectedType] = useState<string | null>(null)
     const [name, setName] = useState('')
+    const [selectedRoles, setSelectedRoles] = useState<string[]>([])
 
     const fetchUsers = async () => {
         try {
@@ -57,62 +56,51 @@ const AdminAddUser = () => {
         fetchUsers()
     }, [])
 
-    const handleTypeSelect = (type: string) => {
-        setSelectedType(type)
-        setStep('details')
-    }
-
-    const handleBack = () => {
-        setStep('type')
-    }
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (selectedType && name) {
-            try {
-                const response = await fetch('https://projeto-estagio-sys-fuc-aval.onrender.com/api/users', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: name,
-                        role: selectedType
-                    })
+        if (selectedRoles.length === 0 || !name) return
+
+        try {
+            const response = await fetch('https://projeto-estagio-sys-fuc-aval.onrender.com/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: name,
+                    roles: selectedRoles
                 })
+            })
 
-                if (!response.ok) {
-                    const err = await response.json()
-                    throw new Error(err.error || 'Erro ao criar utilizador')
-                }
-
-                const newUser = await response.json()
-                await fetchUsers()
-                setName('')
-                setSelectedType(null)
-                setStep('type')
-            } catch (error) {
-                console.error('Error to criate user:', error)
-                alert((error as Error).message)
+            if (!response.ok) {
+                const err = await response.json()
+                throw new Error(err.error || 'Erro ao criar utilizador')
             }
+
+            await fetchUsers()
+            setName('')
+            setSelectedRoles([])
+        } catch (error) {
+            console.error('Error creating user:', error)
+            alert((error as Error).message)
         }
     }
 
-    const handleUpdateRole = async (userId: number, newRole: string) => {
+    const handleUpdateRoles = async (userId: number, roles: string[]) => {
         try {
             const response = await fetch(`https://projeto-estagio-sys-fuc-aval.onrender.com/api/users/${userId}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ role: newRole })
+                body: JSON.stringify({ roles })
             })
 
-            if (!response.ok) throw new Error('Falha ao atualizar cargo do user')
+            if (!response.ok) throw new Error('Falha ao atualizar cargos do user')
             await fetchUsers()
         } catch (error) {
-            console.error('Error updating user role:', error)
-            alert('Failed to update user role')
+            console.error('Error updating user roles:', error)
+            alert('Failed to update user roles')
         }
     }
 
@@ -132,6 +120,14 @@ const AdminAddUser = () => {
         }
     }
 
+    const toggleRole = (role: string) => {
+        setSelectedRoles(prev => 
+            prev.includes(role)
+                ? prev.filter(r => r !== role)
+                : [...prev, role]
+        )
+    }
+
     return (
         <div className="max-w-6xl mx-auto space-y-8">
             <div className="bg-white shadow-md rounded-lg p-6">
@@ -149,7 +145,6 @@ const AdminAddUser = () => {
                     </button>
                 </div>
 
-                {/* User List */}
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -158,7 +153,7 @@ const AdminAddUser = () => {
                                     Nome de Usuário
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Cargo
+                                    Cargos
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Criado a
@@ -175,15 +170,24 @@ const AdminAddUser = () => {
                                         {user.username}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <select
-                                            value={user.role}
-                                            onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                                            className="text-sm text-gray-900 border border-gray-300 rounded-md px-2 py-1"
-                                        >
-                                            <option value="admin">Administrador</option>
-                                            <option value="gestor">Gestor</option>
-                                            <option value="avaliador">Avaliador</option>
-                                        </select>
+                                        <div className="flex gap-2">
+                                            {Object.keys(userTypes).map(role => (
+                                                <label key={role} className="flex items-center space-x-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={user.roles.includes(role)}
+                                                        onChange={() => {
+                                                            const newRoles = user.roles.includes(role)
+                                                                ? user.roles.filter(r => r !== role)
+                                                                : [...user.roles, role]
+                                                            handleUpdateRoles(user.id, newRoles)
+                                                        }}
+                                                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <span className="text-sm text-gray-600">{userTypes[role].label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {new Date(user.created_at).toLocaleDateString()}
@@ -203,7 +207,6 @@ const AdminAddUser = () => {
                 </div>
             </div>
 
-            {/* Add New User Form */}
             <div className="bg-white shadow-md rounded-lg p-6">
                 <div className="flex items-center gap-3 mb-6">
                     <UserPlus className="h-6 w-6 text-purple-600" />
@@ -229,18 +232,19 @@ const AdminAddUser = () => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cargo
+                            Cargos
                         </label>
                         <div className="grid grid-cols-3 gap-4">
                             {Object.entries(userTypes).map(([type, config]) => (
                                 <button
                                     key={type}
                                     type="button"
-                                    onClick={() => handleTypeSelect(type)}
-                                    className={`flex items-center gap-2 p-3 rounded-lg border ${selectedType === type
-                                        ? 'border-purple-500 bg-purple-50'
-                                        : 'border-gray-200 hover:border-purple-500'
-                                        }`}
+                                    onClick={() => toggleRole(type)}
+                                    className={`flex items-center gap-2 p-3 rounded-lg border ${
+                                        selectedRoles.includes(type)
+                                            ? 'border-purple-500 bg-purple-50'
+                                            : 'border-gray-200 hover:border-purple-500'
+                                    }`}
                                 >
                                     {config.icon}
                                     <span className="text-sm font-medium">{config.label}</span>
@@ -253,7 +257,7 @@ const AdminAddUser = () => {
                         <button
                             type="submit"
                             className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition duration-200"
-                            disabled={!selectedType || !name}
+                            disabled={selectedRoles.length === 0 || !name}
                         >
                             Adicionar Usuário
                         </button>
