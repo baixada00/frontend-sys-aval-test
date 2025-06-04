@@ -34,9 +34,9 @@ function AppContent() {
           <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard\" replace /> : <Login />} />
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
-          <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['gestor', 'admin']} />} />
-          <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['gestor', 'admin']} />} />
-          <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor', 'admin']} />} />
+          <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['admin']} />} />
+          <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['admin']} />} />
+          <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor']} />} />
           <Route path="/avaliacao-fuc/:id" element={<ProtectedRoute element={<AvaliacaoFUC />} allowedRoles={['avaliador']} />} />
           <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />
           <Route path="/admin/add-user" element={<ProtectedRoute element={<AdminAddUser />} allowedRoles={['admin']} />} />
