@@ -3,6 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Home, FileText, BarChart2, UserPlus, LogOut, UserCog, RefreshCw } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
+const roleLabels = {
+  admin: 'Administrador',
+  gestor: 'Gestor',
+  avaliador: 'Avaliador'
+}
+
 export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -70,7 +76,7 @@ export default function Navbar() {
             <div className="relative group">
               <button className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
                 <UserCog className="w-4 h-4" />
-                {user.name} ({user.activeRole})
+                {user.name} ({roleLabels[user.activeRole]})
                 <RefreshCw className="w-4 h-4" />
               </button>
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block z-50">
@@ -84,9 +90,7 @@ export default function Navbar() {
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    {role === 'admin' && 'Mudar para Administrador'}
-                    {role === 'gestor' && 'Mudar para Gestor'}
-                    {role === 'avaliador' && 'Mudar para Avaliador'}
+                    Mudar para {roleLabels[role]}
                   </button>
                 ))}
               </div>
