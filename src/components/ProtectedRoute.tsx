@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ element, allowedRoles }
 
     if (!user) {
         sessionStorage.setItem('redirectPath', location.pathname)
-        return <Navigate to="/login" replace />
+        return <Navigate to="/login\" replace />
     }
 
     if (allowedRoles && !allowedRoles.includes(user.activeRole)) {
