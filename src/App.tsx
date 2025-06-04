@@ -33,7 +33,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard\" replace /> : <Login />} />
-          <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
+          <Route path="/dashboard\" element={<ProtectedRoute element={<Dashboard />} />} />
           <Route path="/gestao-fuc" element={<ProtectedRoute element={<GestaoFUC />} allowedRoles={['admin']} />} />
           <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['admin']} />} />
           <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor']} />} />
