@@ -42,7 +42,7 @@ export default function Navbar() {
               <Home className="w-4 h-4 mr-2" />
               Dashboard
             </Link>
-            {user.activeRole === 'admin' && (
+            {(user.activeRole === 'gestor' || user.activeRole === 'admin') && (
               <>
                 <Link
                   to="/gestao-fuc"
@@ -51,6 +51,10 @@ export default function Navbar() {
                   <FileText className="w-4 h-4 mr-2" />
                   Gestão FUC
                 </Link>
+              </>
+            )}
+            {user.activeRole === 'admin' && (
+              <>
                 <Link
                   to="/relatorios"
                   className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/relatorios')}`}
