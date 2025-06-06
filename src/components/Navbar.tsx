@@ -42,17 +42,30 @@ export default function Navbar() {
               <Home className="w-4 h-4 mr-2" />
               Dashboard
             </Link>
-            {(user.activeRole === 'gestor' || user.activeRole === 'admin') && (
-              <>
-                <Link
-                  to="/gestao-fuc"
-                  className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/gestao-fuc')}`}
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Gestão FUC
-                </Link>
-              </>
+            
+            {/* Admin: Full FUC management */}
+            {user.activeRole === 'admin' && (
+              <Link
+                to="/gestao-fuc"
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/gestao-fuc')}`}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Gestão FUC
+              </Link>
             )}
+
+            {/* Gestor: Only template management */}
+            {user.activeRole === 'gestor' && (
+              <Link
+                to="/gerir-template"
+                className={`flex items-center px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors ${isActive('/gerir-template')}`}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Gerir Templates
+              </Link>
+            )}
+
+            {/* Admin only features */}
             {user.activeRole === 'admin' && (
               <>
                 <Link
@@ -79,21 +92,21 @@ export default function Navbar() {
                 {user.name} ({roleLabels[user.activeRole]})
                 <RefreshCw className="w-4 h-4" />
               </button>
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block z-50">
-                {user.roles.map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => handleRoleChange(role)}
-                    className={`block w-full text-left px-4 py-2 text-sm ${
-                      role === user.activeRole 
-                        ? 'bg-purple-50 text-purple-700' 
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    Mudar para {roleLabels[role]}
-                  </button>
-                ))}
-              </div>
+              {user.roles.length > 1 && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block z-50">
+                  {user.roles
+                    .filter(role => role !== user.activeRole)
+                    .map((role) => (
+                    <button
+                      key={role}
+                      onClick={() => handleRoleChange(role)}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Mudar para {roleLabels[role]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               onClick={handleLogout}

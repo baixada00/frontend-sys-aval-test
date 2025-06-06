@@ -71,7 +71,8 @@ const GestaoFUC = () => {
 
     useEffect(() => {
         fetchFUCs()
-        if (user?.type === 'admin') {
+        // Only admin can see unloaded FUCs
+        if (user?.activeRole === 'admin') {
             fetchUnloadedFucs()
         }
     }, [user])
@@ -99,19 +100,24 @@ const GestaoFUC = () => {
         <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-purple-900">Gestão de FUCs</h1>
+                    <h1 className="text-2xl font-bold text-purple-900">
+                        {user?.activeRole === 'admin' ? 'Gestão de FUCs' : 'FUCs Disponíveis'}
+                    </h1>
                     <div className="flex gap-4">
-                        <Link
-                            to="/criar-fuc"
-                            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Criar Nova FUC
-                        </Link>
+                        {/* Only admin can create new FUCs */}
+                        {user?.activeRole === 'admin' && (
+                            <Link
+                                to="/criar-fuc"
+                                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                            >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Criar Nova FUC
+                            </Link>
+                        )}
                         <button
                             onClick={() => {
                                 fetchFUCs();
-                                if (user?.type === 'admin') fetchUnloadedFucs();
+                                if (user?.activeRole === 'admin') fetchUnloadedFucs();
                             }}
                             className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200"
                         >
@@ -121,7 +127,8 @@ const GestaoFUC = () => {
                     </div>
                 </div>
 
-                {user?.type === 'admin' && unloadedFucs.length > 0 && (
+                {/* Only admin can see and load unloaded FUCs */}
+                {user?.activeRole === 'admin' && unloadedFucs.length > 0 && (
                     <div className="mt-6 bg-gray-50 rounded-lg p-4">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">FUCs Disponíveis para Carregar</h2>
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -145,12 +152,16 @@ const GestaoFUC = () => {
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">FUCs Carregadas</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                    {user?.activeRole === 'admin' ? 'FUCs Carregadas' : 'FUCs Habilitadas'}
+                </h2>
                 {!Array.isArray(fucs) || fucs.length === 0 ? (
                     <p className="text-center text-gray-600 py-8">Nenhuma FUC disponível no momento.</p>
                 ) : (
                     <div className="space-y-4">
-                        {fucs.map(fuc => (
+                        {fucs
+                            .filter(fuc => user?.activeRole === 'admin' || fuc.enabled) // Gestor only sees enabled FUCs
+                            .map(fuc => (
                             <div
                                 key={fuc.id}
                                 className="flex items-center justify-between bg-purple-50 p-4 rounded-lg border border-purple-100"
@@ -169,7 +180,8 @@ const GestaoFUC = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    {user?.type === 'admin' && (
+                                    {/* Only admin can toggle FUC status */}
+                                    {user?.activeRole === 'admin' && (
                                         <button
                                             onClick={() => toggleFUCStatus(fuc.id, fuc.enabled)}
                                             className={`flex items-center px-4 py-2 rounded-md text-sm font-medium ${
@@ -182,7 +194,9 @@ const GestaoFUC = () => {
                                             {fuc.enabled ? 'Ativa' : 'Inativa'}
                                         </button>
                                     )}
-                                    {(user?.type === 'gestor' || user?.type === 'admin') && (
+                                    
+                                    {/* Admin can view templates, but cannot manage them */}
+                                    {user?.activeRole === 'admin' && (
                                         <Link
                                             to={`/gerir-template/${fuc.id}`}
                                             className={`inline-flex items-center px-4 py-2 rounded-md ${
@@ -193,7 +207,7 @@ const GestaoFUC = () => {
                                             onClick={(e) => !fuc.enabled && e.preventDefault()}
                                         >
                                             <FileText className="w-4 h-4 mr-2" />
-                                            {user.type === 'gestor' ? 'Gerenciar Templates' : 'Ver Templates'}
+                                            Ver Templates
                                         </Link>
                                     )}
                                 </div>

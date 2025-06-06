@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
-import { FileText, CheckCircle, Save, RefreshCw, AlertCircle } from 'lucide-react'
+import { FileText, CheckCircle, RefreshCw, AlertCircle, Settings } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 import { API_BASE } from '../config/api'
 
@@ -30,8 +30,6 @@ const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [selectedFUC, setSelectedFUC] = useState<FUC | null>(null)
-    const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
 
     const fetchDashboardData = async () => {
         try {
@@ -41,7 +39,8 @@ const Dashboard = () => {
 
             const rawFucs: FUC[] = Array.isArray(response.data.fucs) ? response.data.fucs : []
 
-            if (user?.type === 'avaliador') {
+            if (user?.activeRole === 'avaliador') {
+                // Avaliador: Only see enabled FUCs with templates
                 const fucsWithTemplates = await Promise.all(
                     rawFucs
                         .filter((fuc: FUC) => fuc.enabled)
@@ -59,8 +58,12 @@ const Dashboard = () => {
                         })
                 )
                 setDashboardData({ fucs: fucsWithTemplates })
+            } else if (user?.activeRole === 'gestor') {
+                // Gestor: Only see enabled FUCs for template management
+                const enabledFucs = rawFucs.filter((fuc: FUC) => fuc.enabled)
+                setDashboardData({ fucs: enabledFucs })
             } else {
-                // For admin and gestor, show all FUCs but without evaluation capability
+                // Admin: See all FUCs
                 setDashboardData({ fucs: rawFucs })
             }
         } catch (error) {
@@ -76,8 +79,7 @@ const Dashboard = () => {
     }, [user])
 
     const handleTemplateSelect = (template: Template) => {
-        setSelectedTemplate(template.id)
-        window.location.href = `/avaliacao-fuc/${selectedFUC?.id}?template=${template.id}`
+        window.location.href = `/avaliacao-fuc/${template.fuc_id}?template=${template.id}`
     }
 
     if (loading) {
@@ -102,16 +104,40 @@ const Dashboard = () => {
     return (
         <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <h1 className="text-2xl font-bold text-purple-900 mb-2">Sistema de Avaliação de FUCs</h1>
-                <p className="text-gray-600">Bem-vindo ao sistema de avaliação de Fichas de Unidade Curricular.</p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-purple-900 mb-2">Sistema de Avaliação de FUCs</h1>
+                        <p className="text-gray-600">
+                            {user?.activeRole === 'admin' && 'Gerencie FUCs, usuários e visualize relatórios.'}
+                            {user?.activeRole === 'gestor' && 'Gerencie templates para FUCs habilitadas.'}
+                            {user?.activeRole === 'avaliador' && 'Avalie FUCs usando os templates disponíveis.'}
+                        </p>
+                    </div>
+                    <button
+                        onClick={fetchDashboardData}
+                        className="flex items-center px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Atualizar
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">FUCs Disponíveis</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                        {user?.activeRole === 'admin' && 'Todas as FUCs'}
+                        {user?.activeRole === 'gestor' && 'FUCs Habilitadas'}
+                        {user?.activeRole === 'avaliador' && 'FUCs Disponíveis para Avaliação'}
+                    </h2>
 
                     {!Array.isArray(dashboardData?.fucs) || dashboardData.fucs.length === 0 ? (
-                        <p className="text-gray-600 text-center py-8">Nenhuma FUC disponível de momento.</p>
+                        <p className="text-gray-600 text-center py-8">
+                            {user?.activeRole === 'avaliador' 
+                                ? 'Nenhuma FUC com templates disponível para avaliação.'
+                                : 'Nenhuma FUC disponível de momento.'
+                            }
+                        </p>
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {dashboardData.fucs.map(fuc => (
@@ -124,13 +150,19 @@ const Dashboard = () => {
                                                     <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
                                                     <span>Relatórios Submetidos: {fuc.submetidos}</span>
                                                 </div>
+                                                {!fuc.enabled && user?.activeRole === 'admin' && (
+                                                    <div className="flex items-center text-sm text-red-600">
+                                                        <AlertCircle className="w-4 h-4 mr-2" />
+                                                        <span>FUC Desabilitada</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <FileText className="w-6 h-6 text-purple-600" />
                                     </div>
 
                                     <div className="mt-4">
-                                        {user?.type === 'avaliador' ? (
+                                        {user?.activeRole === 'avaliador' ? (
                                             fuc.templates && fuc.templates.length > 0 ? (
                                                 <div className="space-y-2">
                                                     <label className="block text-sm font-medium text-gray-700">
@@ -138,12 +170,16 @@ const Dashboard = () => {
                                                     </label>
                                                     <select
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500"
-                                                        onChange={(e) => handleTemplateSelect(fuc.templates![parseInt(e.target.value)])}
+                                                        onChange={(e) => {
+                                                            const templateId = parseInt(e.target.value)
+                                                            const template = fuc.templates!.find(t => t.id === templateId)
+                                                            if (template) handleTemplateSelect(template)
+                                                        }}
                                                         defaultValue=""
                                                     >
                                                         <option value="" disabled>Escolha uma template</option>
-                                                        {fuc.templates.map((template, index) => (
-                                                            <option key={template.id} value={index}>
+                                                        {fuc.templates.map((template) => (
+                                                            <option key={template.id} value={template.id}>
                                                                 {template.nome}
                                                             </option>
                                                         ))}
@@ -152,9 +188,17 @@ const Dashboard = () => {
                                             ) : (
                                                 <p className="text-sm text-gray-500">Nenhuma template disponível</p>
                                             )
+                                        ) : user?.activeRole === 'gestor' ? (
+                                            <Link
+                                                to={`/gerir-template/${fuc.id}`}
+                                                className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                                            >
+                                                <Settings className="w-4 h-4 mr-2" />
+                                                Gerenciar Templates
+                                            </Link>
                                         ) : (
                                             <Link
-                                                to={fuc.link}
+                                                to={`/gestao-fuc`}
                                                 className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
                                             >
                                                 Ver Detalhes
