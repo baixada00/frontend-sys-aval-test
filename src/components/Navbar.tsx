@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Home, FileText, BarChart2, UserPlus, LogOut, UserCog, RefreshCw } from 'lucide-react'
+import { Home, FileText, BarChart2, UserPlus, LogOut, UserCog, ChevronDown } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 
 const roleLabels = {
@@ -13,6 +13,8 @@ export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, setUser, setActiveRole } = useUser()
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isActive = (path: string) => {
     return location.pathname === path ? 'bg-purple-700' : ''
@@ -25,8 +27,27 @@ export default function Navbar() {
 
   const handleRoleChange = (role: 'admin' | 'gestor' | 'avaliador') => {
     setActiveRole(role)
+    setIsDropdownOpen(false)
     navigate('/dashboard')
   }
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen)
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   if (!user) return null
 
@@ -86,25 +107,30 @@ export default function Navbar() {
             )}
           </div>
           <div className="flex items-center gap-4">
-            <div className="relative group">
-              <button className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700">
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                onClick={toggleDropdown}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+              >
                 <UserCog className="w-4 h-4" />
                 {user.name} ({roleLabels[user.activeRole]})
-                <RefreshCw className="w-4 h-4" />
+                {user.roles.length > 1 && (
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                )}
               </button>
-              {user.roles.length > 1 && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block z-50">
+              {user.roles.length > 1 && isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                   {user.roles
                     .filter(role => role !== user.activeRole)
                     .map((role) => (
-                    <button
-                      key={role}
-                      onClick={() => handleRoleChange(role)}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Mudar para {roleLabels[role]}
-                    </button>
-                  ))}
+                      <button
+                        key={role}
+                        onClick={() => handleRoleChange(role)}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      >
+                        Mudar para {roleLabels[role]}
+                      </button>
+                    ))}
                 </div>
               )}
             </div>
