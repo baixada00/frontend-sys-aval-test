@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FileText, Save, AlertCircle, Plus, Trash2, Check, X } from 'lucide-react'
+import { FileText, Save, AlertCircle, Plus, Trash2, Check, X, Star } from 'lucide-react'
 import axios from 'axios'
 import { useUser } from '../context/UserContext'
 import { API_BASE } from '../config/api'
@@ -9,6 +9,7 @@ interface FUC {
     id: number
     titulo: string
     enabled: boolean
+    conteudo: string
 }
 
 interface Campo {
@@ -47,6 +48,61 @@ const GerirTemplate = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+
+    // Function to parse FUC content and extract campos
+    const parseFucContent = (content: string): Campo[] => {
+        if (!content) return []
+
+        const lines = content.split('\n')
+        const campos: Campo[] = []
+        let currentCampo: Partial<Campo> = {}
+        let descriptionLines: string[] = []
+
+        // Regex patterns for different section types
+        const mainSectionRegex = /^\d+\.(?!\d)/
+        const subSectionRegex = /^\d+\.\d+\./
+
+        lines.forEach((line, index) => {
+            const trimmedLine = line.trim()
+            
+            const isMainSection = mainSectionRegex.test(trimmedLine)
+            const isSubSection = subSectionRegex.test(trimmedLine)
+
+            if (isMainSection || isSubSection) {
+                // Save previous campo if it exists
+                if (currentCampo.titulo && descriptionLines.length > 0) {
+                    campos.push({
+                        id: `campo_${campos.length + 1}`,
+                        titulo: currentCampo.titulo,
+                        descricao: descriptionLines.join('\n').trim(),
+                        tipo: isSubSection ? 'subcampo' : 'campo'
+                    })
+                }
+
+                // Start new campo
+                currentCampo = {
+                    titulo: trimmedLine,
+                    tipo: isSubSection ? 'subcampo' : 'campo'
+                }
+                descriptionLines = []
+            } else if (trimmedLine) {
+                // Add to description
+                descriptionLines.push(trimmedLine)
+            }
+        })
+
+        // Don't forget the last campo
+        if (currentCampo.titulo && descriptionLines.length > 0) {
+            campos.push({
+                id: `campo_${campos.length + 1}`,
+                titulo: currentCampo.titulo,
+                descricao: descriptionLines.join('\n').trim(),
+                tipo: currentCampo.tipo || 'campo'
+            })
+        }
+
+        return campos
+    }
 
     useEffect(() => {
         const fetchEnabledFUCs = async () => {
@@ -87,8 +143,16 @@ const GerirTemplate = () => {
             ])
 
             setTemplates(templatesRes.data)
-            if (fucRes.data.estrutura?.campos) {
-                setCampos(fucRes.data.estrutura.campos)
+            
+            // Parse FUC content to extract campos
+            const fucData = fucRes.data
+            if (fucData.conteudo) {
+                const extractedCampos = parseFucContent(fucData.conteudo)
+                setCampos(extractedCampos)
+            } else if (fucData.estrutura?.campos) {
+                setCampos(fucData.estrutura.campos)
+            } else {
+                setCampos([])
             }
         } catch (error) {
             console.error('Erro ao carregar dados da FUC:', error)
@@ -159,6 +223,28 @@ const GerirTemplate = () => {
         })
     }
 
+    const createUniversalTemplate = () => {
+        if (!selectedFucId) return
+
+        // Create a universal template with all evaluation options for all campos
+        const universalCamposAvaliacao: CampoAvaliacao[] = campos.map(campo => ({
+            campo_id: campo.id,
+            titulo: campo.titulo,
+            tipo_avaliacao: ['texto', 'escolha_multipla'],
+            opcoes: ['Adequado', 'Não Adequado', 'Incerteza', 'Necessita Revisão', 'Excelente']
+        }))
+
+        setCurrentTemplate({
+            id: 0,
+            nome: 'Template Universal - Avaliação Completa',
+            conteudo: 'Template universal com todas as opções de avaliação disponíveis para todos os campos da FUC.',
+            fuc_id: selectedFucId,
+            criado_por: user?.id || 0,
+            created_at: new Date().toISOString(),
+            campos_avaliacao: universalCamposAvaliacao
+        })
+    }
+
     const toggleAvaliacaoTipo = (campoId: string, tipo: 'texto' | 'escolha_multipla') => {
         if (!currentTemplate) return
 
@@ -214,6 +300,28 @@ const GerirTemplate = () => {
             const camposAtualizados = prev.campos_avaliacao.map(campo => {
                 if (campo.campo_id === campoId) {
                     return { ...campo, opcoes }
+                }
+                return campo
+            })
+
+            return {
+                ...prev,
+                campos_avaliacao: camposAtualizados
+            }
+        })
+    }
+
+    const removeOpcao = (campoId: string, opcaoIndex: number) => {
+        if (!currentTemplate) return
+
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
+
+            const camposAtualizados = prev.campos_avaliacao.map(campo => {
+                if (campo.campo_id === campoId && campo.opcoes) {
+                    const novasOpcoes = [...campo.opcoes]
+                    novasOpcoes.splice(opcaoIndex, 1)
+                    return { ...campo, opcoes: novasOpcoes }
                 }
                 return campo
             })
@@ -286,6 +394,13 @@ const GerirTemplate = () => {
                                 Voltar
                             </button>
                             <button
+                                onClick={createUniversalTemplate}
+                                className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                            >
+                                <Star className="w-4 h-4 mr-2" />
+                                Template Universal
+                            </button>
+                            <button
                                 onClick={createNewTemplate}
                                 className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
                             >
@@ -311,80 +426,105 @@ const GerirTemplate = () => {
                             </div>
 
                             <div className="space-y-4">
-                                <h3 className="text-lg font-medium text-gray-900">Campos para Avaliação</h3>
-                                {campos.map((campo) => {
-                                    const avaliacaoConfig = currentTemplate.campos_avaliacao.find(c => c.campo_id === campo.id)
-                                    return (
-                                        <div key={campo.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                                            <h4 className="font-medium text-gray-800">{campo.titulo}</h4>
-                                            <p className="text-sm text-gray-600">{campo.descricao}</p>
-
-                                            <div className="flex gap-4">
-                                                <button
-                                                    onClick={() => toggleAvaliacaoTipo(campo.id, 'texto')}
-                                                    className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('texto')
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-gray-100 text-gray-700'
-                                                        }`}
-                                                >
-                                                    {avaliacaoConfig?.tipo_avaliacao.includes('texto') ? (
-                                                        <Check className="w-4 h-4 mr-2" />
-                                                    ) : (
-                                                        <X className="w-4 h-4 mr-2" />
-                                                    )}
-                                                    Texto Livre
-                                                </button>
-
-                                                <button
-                                                    onClick={() => toggleAvaliacaoTipo(campo.id, 'escolha_multipla')}
-                                                    className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla')
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-gray-100 text-gray-700'
-                                                        }`}
-                                                >
-                                                    {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') ? (
-                                                        <Check className="w-4 h-4 mr-2" />
-                                                    ) : (
-                                                        <X className="w-4 h-4 mr-2" />
-                                                    )}
-                                                    Escolha Múltipla
-                                                </button>
-                                            </div>
-
-                                            {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') && (
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                        Opções de Escolha
-                                                    </label>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        {avaliacaoConfig.opcoes?.map((opcao, index) => (
-                                                            <input
-                                                                key={index}
-                                                                type="text"
-                                                                value={opcao}
-                                                                onChange={(e) => {
-                                                                    const novasOpcoes = [...(avaliacaoConfig.opcoes || [])]
-                                                                    novasOpcoes[index] = e.target.value
-                                                                    updateOpcoes(campo.id, novasOpcoes)
-                                                                }}
-                                                                className="px-3 py-1 border border-gray-300 rounded-md text-sm"
-                                                            />
-                                                        ))}
-                                                        <button
-                                                            onClick={() => {
-                                                                const novasOpcoes = [...(avaliacaoConfig.opcoes || []), '']
-                                                                updateOpcoes(campo.id, novasOpcoes)
-                                                            }}
-                                                            className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm"
-                                                        >
-                                                            + Adicionar Opção
-                                                        </button>
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Campos para Avaliação ({campos.length} campos encontrados)
+                                </h3>
+                                
+                                {campos.length === 0 ? (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                        <p className="text-yellow-800">
+                                            Nenhum campo foi encontrado nesta FUC. Verifique se o conteúdo da FUC está formatado corretamente.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    campos.map((campo) => {
+                                        const avaliacaoConfig = currentTemplate.campos_avaliacao.find(c => c.campo_id === campo.id)
+                                        return (
+                                            <div key={campo.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <h4 className="font-medium text-gray-800">{campo.titulo}</h4>
+                                                        <p className="text-sm text-gray-600 mt-1">{campo.descricao}</p>
+                                                        <span className="inline-block mt-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                                            {campo.tipo}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    )
-                                })}
+
+                                                <div className="flex gap-4">
+                                                    <button
+                                                        onClick={() => toggleAvaliacaoTipo(campo.id, 'texto')}
+                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('texto')
+                                                            ? 'bg-purple-100 text-purple-700'
+                                                            : 'bg-gray-100 text-gray-700'
+                                                            }`}
+                                                    >
+                                                        {avaliacaoConfig?.tipo_avaliacao.includes('texto') ? (
+                                                            <Check className="w-4 h-4 mr-2" />
+                                                        ) : (
+                                                            <X className="w-4 h-4 mr-2" />
+                                                        )}
+                                                        Texto Livre
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => toggleAvaliacaoTipo(campo.id, 'escolha_multipla')}
+                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla')
+                                                            ? 'bg-purple-100 text-purple-700'
+                                                            : 'bg-gray-100 text-gray-700'
+                                                            }`}
+                                                    >
+                                                        {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') ? (
+                                                            <Check className="w-4 h-4 mr-2" />
+                                                        ) : (
+                                                            <X className="w-4 h-4 mr-2" />
+                                                        )}
+                                                        Escolha Múltipla
+                                                    </button>
+                                                </div>
+
+                                                {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') && (
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                            Opções de Escolha
+                                                        </label>
+                                                        <div className="space-y-2">
+                                                            {avaliacaoConfig.opcoes?.map((opcao, index) => (
+                                                                <div key={index} className="flex gap-2 items-center">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={opcao}
+                                                                        onChange={(e) => {
+                                                                            const novasOpcoes = [...(avaliacaoConfig.opcoes || [])]
+                                                                            novasOpcoes[index] = e.target.value
+                                                                            updateOpcoes(campo.id, novasOpcoes)
+                                                                        }}
+                                                                        className="flex-1 px-3 py-1 border border-gray-300 rounded-md text-sm"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => removeOpcao(campo.id, index)}
+                                                                        className="px-2 py-1 text-red-600 hover:bg-red-50 rounded-md"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                            <button
+                                                                onClick={() => {
+                                                                    const novasOpcoes = [...(avaliacaoConfig.opcoes || []), '']
+                                                                    updateOpcoes(campo.id, novasOpcoes)
+                                                                }}
+                                                                className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200"
+                                                            >
+                                                                + Adicionar Opção
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-4">
@@ -396,7 +536,7 @@ const GerirTemplate = () => {
                                 </button>
                                 <button
                                     onClick={handleSave}
-                                    disabled={saving}
+                                    disabled={saving || !currentTemplate.nome}
                                     className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
                                 >
                                     <Save className="w-4 h-4 mr-2" />
@@ -418,6 +558,9 @@ const GerirTemplate = () => {
                                             <h3 className="text-lg font-medium text-purple-900">{template.nome}</h3>
                                             <p className="text-sm text-gray-600">
                                                 Criada em: {new Date(template.created_at).toLocaleDateString()}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                                Campos configurados: {template.campos_avaliacao?.length || 0}
                                             </p>
                                         </div>
                                         <div className="flex gap-2">
