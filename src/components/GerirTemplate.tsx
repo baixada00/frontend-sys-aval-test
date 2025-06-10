@@ -29,11 +29,13 @@ interface CampoAvaliacao {
 interface Template {
     id: number
     nome: string
-    conteudo: JSON
+    conteudo: {
+        campos_avaliacao: CampoAvaliacao[]
+        descricao?: string
+    }
     fuc_id: number
     criado_por: number
     created_at: string
-    campos_avaliacao: CampoAvaliacao[]
 }
 
 const GerirTemplate = () => {
@@ -49,7 +51,7 @@ const GerirTemplate = () => {
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
 
-    // Function to parse FUC content and extract campos
+    // Function to parse FUC content and extract campos with unique IDs
     const parseFucContent = (content: string): Campo[] => {
         if (!content) return []
 
@@ -57,6 +59,7 @@ const GerirTemplate = () => {
         const campos: Campo[] = []
         let currentCampo: Partial<Campo> = {}
         let descriptionLines: string[] = []
+        let campoCounter = 1
 
         // Regex patterns for different section types
         const mainSectionRegex = /^\d+\.(?!\d)/
@@ -72,11 +75,12 @@ const GerirTemplate = () => {
                 // Save previous campo if it exists
                 if (currentCampo.titulo && descriptionLines.length > 0) {
                     campos.push({
-                        id: `campo_${campos.length + 1}`,
+                        id: `campo_${campoCounter}`,
                         titulo: currentCampo.titulo,
                         descricao: descriptionLines.join('\n').trim(),
                         tipo: isSubSection ? 'subcampo' : 'campo'
                     })
+                    campoCounter++
                 }
 
                 // Start new campo
@@ -94,7 +98,7 @@ const GerirTemplate = () => {
         // Don't forget the last campo
         if (currentCampo.titulo && descriptionLines.length > 0) {
             campos.push({
-                id: `campo_${campos.length + 1}`,
+                id: `campo_${campoCounter}`,
                 titulo: currentCampo.titulo,
                 descricao: descriptionLines.join('\n').trim(),
                 tipo: currentCampo.tipo || 'campo'
@@ -142,15 +146,31 @@ const GerirTemplate = () => {
                 axios.get(`${API_BASE}/api/fucs/${fucId}`)
             ])
 
-            setTemplates(templatesRes.data)
+            // Parse templates and ensure proper structure
+            const parsedTemplates = templatesRes.data.map((template: any) => ({
+                ...template,
+                conteudo: typeof template.conteudo === 'string' 
+                    ? { campos_avaliacao: [], descricao: template.conteudo }
+                    : template.conteudo
+            }))
+            setTemplates(parsedTemplates)
 
             // Parse FUC content to extract campos
             const fucData = fucRes.data
             if (fucData.conteudo) {
                 const extractedCampos = parseFucContent(fucData.conteudo)
                 setCampos(extractedCampos)
-            } else if (fucData.estrutura?.campos) {
-                setCampos(fucData.estrutura.campos)
+            } else if (fucData.campos) {
+                // If campos are stored as JSON
+                try {
+                    const parsedCampos = typeof fucData.campos === 'string' 
+                        ? JSON.parse(fucData.campos) 
+                        : fucData.campos
+                    setCampos(Array.isArray(parsedCampos) ? parsedCampos : [])
+                } catch (e) {
+                    console.error('Error parsing campos JSON:', e)
+                    setCampos([])
+                }
             } else {
                 setCampos([])
             }
@@ -177,11 +197,10 @@ const GerirTemplate = () => {
                 nome: currentTemplate.nome,
                 conteudo: currentTemplate.conteudo,
                 fuc_id: selectedFucId,
-                criado_por: user?.id,
-                campos_avaliacao: currentTemplate.campos_avaliacao
+                criado_por: user?.id
             }
 
-            if (currentTemplate.id) {
+            if (currentTemplate.id && currentTemplate.id > 0) {
                 await axios.put(`${API_BASE}/api/templates/${currentTemplate.id}`, templateData)
             } else {
                 await axios.post(`${API_BASE}/api/templates`, templateData)
@@ -189,6 +208,7 @@ const GerirTemplate = () => {
 
             await loadFucData(selectedFucId)
             setCurrentTemplate(null)
+            alert('Template guardada com sucesso!')
         } catch (error) {
             console.error('Erro ao guardar template:', error)
             alert('Erro ao guardar template.')
@@ -215,11 +235,13 @@ const GerirTemplate = () => {
         setCurrentTemplate({
             id: 0,
             nome: '',
-            conteudo: JSON.parse(fucs.find(f => f.id === selectedFucId)?.conteudo || "{}"),
+            conteudo: {
+                campos_avaliacao: [],
+                descricao: ''
+            },
             fuc_id: selectedFucId,
             criado_por: user?.id || 0,
-            created_at: new Date().toISOString(),
-            campos_avaliacao: []
+            created_at: new Date().toISOString()
         })
     }
 
@@ -237,11 +259,13 @@ const GerirTemplate = () => {
         setCurrentTemplate({
             id: 0,
             nome: 'Template Universal - Avaliação Completa',
-            conteudo: JSON.parse("Template universal com todas as opções de avaliação disponíveis para todos os campos da FUC."),
+            conteudo: {
+                campos_avaliacao: universalCamposAvaliacao,
+                descricao: 'Template universal com todas as opções de avaliação disponíveis para todos os campos da FUC.'
+            },
             fuc_id: selectedFucId,
             criado_por: user?.id || 0,
-            created_at: new Date().toISOString(),
-            campos_avaliacao: universalCamposAvaliacao
+            created_at: new Date().toISOString()
         })
     }
 
@@ -251,7 +275,7 @@ const GerirTemplate = () => {
         setCurrentTemplate(prev => {
             if (!prev) return prev
 
-            const camposAtualizados = [...prev.campos_avaliacao]
+            const camposAtualizados = [...prev.conteudo.campos_avaliacao]
             const campoIndex = camposAtualizados.findIndex(c => c.campo_id === campoId)
 
             if (campoIndex === -1) {
@@ -286,7 +310,10 @@ const GerirTemplate = () => {
 
             return {
                 ...prev,
-                campos_avaliacao: camposAtualizados
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
             }
         })
     }
@@ -297,7 +324,7 @@ const GerirTemplate = () => {
         setCurrentTemplate(prev => {
             if (!prev) return prev
 
-            const camposAtualizados = prev.campos_avaliacao.map(campo => {
+            const camposAtualizados = prev.conteudo.campos_avaliacao.map(campo => {
                 if (campo.campo_id === campoId) {
                     return { ...campo, opcoes }
                 }
@@ -306,7 +333,33 @@ const GerirTemplate = () => {
 
             return {
                 ...prev,
-                campos_avaliacao: camposAtualizados
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
+            }
+        })
+    }
+
+    const addOpcao = (campoId: string) => {
+        if (!currentTemplate) return
+
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
+
+            const camposAtualizados = prev.conteudo.campos_avaliacao.map(campo => {
+                if (campo.campo_id === campoId && campo.opcoes) {
+                    return { ...campo, opcoes: [...campo.opcoes, ''] }
+                }
+                return campo
+            })
+
+            return {
+                ...prev,
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
             }
         })
     }
@@ -317,7 +370,7 @@ const GerirTemplate = () => {
         setCurrentTemplate(prev => {
             if (!prev) return prev
 
-            const camposAtualizados = prev.campos_avaliacao.map(campo => {
+            const camposAtualizados = prev.conteudo.campos_avaliacao.map(campo => {
                 if (campo.campo_id === campoId && campo.opcoes) {
                     const novasOpcoes = [...campo.opcoes]
                     novasOpcoes.splice(opcaoIndex, 1)
@@ -328,7 +381,10 @@ const GerirTemplate = () => {
 
             return {
                 ...prev,
-                campos_avaliacao: camposAtualizados
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
             }
         })
     }
@@ -396,6 +452,7 @@ const GerirTemplate = () => {
                             <button
                                 onClick={createUniversalTemplate}
                                 className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                                disabled={campos.length === 0}
                             >
                                 <Star className="w-4 h-4 mr-2" />
                                 Template Universal
@@ -425,6 +482,25 @@ const GerirTemplate = () => {
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Descrição da Template
+                                </label>
+                                <textarea
+                                    value={currentTemplate.conteudo.descricao || ''}
+                                    onChange={(e) => setCurrentTemplate(prev => ({
+                                        ...prev!,
+                                        conteudo: {
+                                            ...prev!.conteudo,
+                                            descricao: e.target.value
+                                        }
+                                    }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500"
+                                    rows={3}
+                                    placeholder="Descrição opcional da template..."
+                                />
+                            </div>
+
                             <div className="space-y-4">
                                 <h3 className="text-lg font-medium text-gray-900">
                                     Campos para Avaliação ({campos.length} campos encontrados)
@@ -438,7 +514,7 @@ const GerirTemplate = () => {
                                     </div>
                                 ) : (
                                     campos.map((campo) => {
-                                        const avaliacaoConfig = currentTemplate.campos_avaliacao.find(c => c.campo_id === campo.id)
+                                        const avaliacaoConfig = currentTemplate.conteudo.campos_avaliacao.find(c => c.campo_id === campo.id)
                                         return (
                                             <div key={campo.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                                                 <div className="flex items-start justify-between">
@@ -510,10 +586,7 @@ const GerirTemplate = () => {
                                                                 </div>
                                                             ))}
                                                             <button
-                                                                onClick={() => {
-                                                                    const novasOpcoes = [...(avaliacaoConfig.opcoes || []), '']
-                                                                    updateOpcoes(campo.id, novasOpcoes)
-                                                                }}
+                                                                onClick={() => addOpcao(campo.id)}
                                                                 className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200"
                                                             >
                                                                 + Adicionar Opção
@@ -560,8 +633,11 @@ const GerirTemplate = () => {
                                                 Criada em: {new Date(template.created_at).toLocaleDateString()}
                                             </p>
                                             <p className="text-sm text-gray-600">
-                                                Campos configurados: {template.campos_avaliacao?.length || 0}
+                                                Campos configurados: {template.conteudo.campos_avaliacao?.length || 0}
                                             </p>
+                                            {template.conteudo.descricao && (
+                                                <p className="text-sm text-gray-500 mt-1">{template.conteudo.descricao}</p>
+                                            )}
                                         </div>
                                         <div className="flex gap-2">
                                             <button

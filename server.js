@@ -230,12 +230,22 @@ app.get('/api/dashboard', async (req, res) => {
 // Templates CRUD
 app.get('/api/templates', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { fuc_id } = req.query;
+    let query = `
       SELECT t.*, u.username as criador_nome 
       FROM templates t 
       LEFT JOIN users u ON t.criado_por = u.id
-      ORDER BY t.created_at DESC
-    `);
+    `;
+    let params = [];
+
+    if (fuc_id) {
+      query += ' WHERE t.fuc_id = $1';
+      params.push(fuc_id);
+    }
+
+    query += ' ORDER BY t.created_at DESC';
+
+    const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     console.error('Erro ao pesquisar templates:', err);
@@ -253,7 +263,7 @@ app.post('/api/templates', [
   try {
     const { rows } = await pool.query(
       'INSERT INTO templates (nome, conteudo, fuc_id, criado_por) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nome, conteudo, fuc_id, criado_por]
+      [nome, JSON.stringify(conteudo), fuc_id, criado_por]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -272,7 +282,7 @@ app.put('/api/templates/:id', [
   try {
     const { rows } = await pool.query(
       'UPDATE templates SET nome = $1, conteudo = $2 WHERE id = $3 RETURNING *',
-      [nome, conteudo, id]
+      [nome, JSON.stringify(conteudo), id]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Template não encontrada' });
