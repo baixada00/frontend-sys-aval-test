@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { FileText, CheckCircle, RefreshCw, AlertCircle, Settings } from 'lucide-react'
 import { useUser } from '../context/UserContext'
@@ -27,6 +27,7 @@ interface DashboardData {
 
 const Dashboard = () => {
     const { user } = useUser()
+    const navigate = useNavigate()
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -78,8 +79,9 @@ const Dashboard = () => {
         fetchDashboardData()
     }, [user])
 
-    const handleTemplateSelect = (template: Template) => {
-        window.location.href = `/avaliacao-fuc/${template.fuc_id}?template=${template.id}`
+    const handleTemplateSelect = (templateId: number, fucId: string) => {
+        // Navigate directly to the evaluation page with template ID
+        navigate(`/avaliacao-fuc/${fucId}?template=${templateId}`)
     }
 
     if (loading) {
@@ -172,8 +174,9 @@ const Dashboard = () => {
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500"
                                                         onChange={(e) => {
                                                             const templateId = parseInt(e.target.value)
-                                                            const template = fuc.templates!.find(t => t.id === templateId)
-                                                            if (template) handleTemplateSelect(template)
+                                                            if (templateId) {
+                                                                handleTemplateSelect(templateId, fuc.id)
+                                                            }
                                                         }}
                                                         defaultValue=""
                                                     >

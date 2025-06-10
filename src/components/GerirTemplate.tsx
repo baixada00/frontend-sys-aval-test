@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { FileText, Save, AlertCircle, Plus, Trash2, Check, X, Star } from 'lucide-react'
+import { FileText, Save, AlertCircle, Plus, Trash2, Check, X, Star, ArrowUp, ArrowDown, Edit3 } from 'lucide-react'
 import axios from 'axios'
 import { useUser } from '../context/UserContext'
 import { API_BASE } from '../config/api'
@@ -17,6 +17,7 @@ interface Campo {
     titulo: string
     descricao: string
     tipo: string
+    customIndex?: string // Add custom index support
 }
 
 interface CampoAvaliacao {
@@ -24,6 +25,7 @@ interface CampoAvaliacao {
     titulo: string
     tipo_avaliacao: ('texto' | 'escolha_multipla')[]
     opcoes?: string[]
+    custom_index?: string // Add custom index support
 }
 
 interface Template {
@@ -50,6 +52,7 @@ const GerirTemplate = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const [editingIndex, setEditingIndex] = useState<string | null>(null)
 
     // Function to parse FUC content and extract campos with unique IDs
     const parseFucContent = (content: string): Campo[] => {
@@ -74,11 +77,17 @@ const GerirTemplate = () => {
             if (isMainSection || isSubSection) {
                 // Save previous campo if it exists
                 if (currentCampo.titulo && descriptionLines.length > 0) {
+                    // Extract original index from title
+                    const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
+                    const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
+                    const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
+                    
                     campos.push({
                         id: `campo_${campoCounter}`,
-                        titulo: currentCampo.titulo,
+                        titulo: cleanTitle,
                         descricao: descriptionLines.join('\n').trim(),
-                        tipo: isSubSection ? 'subcampo' : 'campo'
+                        tipo: isSubSection ? 'subcampo' : 'campo',
+                        customIndex: originalIndex
                     })
                     campoCounter++
                 }
@@ -97,11 +106,16 @@ const GerirTemplate = () => {
 
         // Don't forget the last campo
         if (currentCampo.titulo && descriptionLines.length > 0) {
+            const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
+            const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
+            const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
+            
             campos.push({
                 id: `campo_${campoCounter}`,
-                titulo: currentCampo.titulo,
+                titulo: cleanTitle,
                 descricao: descriptionLines.join('\n').trim(),
-                tipo: currentCampo.tipo || 'campo'
+                tipo: currentCampo.tipo || 'campo',
+                customIndex: originalIndex
             })
         }
 
@@ -253,7 +267,8 @@ const GerirTemplate = () => {
             campo_id: campo.id,
             titulo: campo.titulo,
             tipo_avaliacao: ['texto', 'escolha_multipla'],
-            opcoes: ['Adequado', 'Não Adequado', 'Incerteza', 'Necessita Revisão', 'Excelente']
+            opcoes: ['Adequado', 'Não Adequado', 'Incerteza', 'Necessita Revisão', 'Excelente'],
+            custom_index: campo.customIndex
         }))
 
         setCurrentTemplate({
@@ -277,13 +292,15 @@ const GerirTemplate = () => {
 
             const camposAtualizados = [...prev.conteudo.campos_avaliacao]
             const campoIndex = camposAtualizados.findIndex(c => c.campo_id === campoId)
+            const originalCampo = campos.find(c => c.id === campoId)
 
             if (campoIndex === -1) {
                 camposAtualizados.push({
                     campo_id: campoId,
-                    titulo: campos.find(c => c.id === campoId)?.titulo || '',
+                    titulo: originalCampo?.titulo || '',
                     tipo_avaliacao: [tipo],
-                    opcoes: tipo === 'escolha_multipla' ? ['Adequado', 'Não Adequado', 'Incerteza'] : undefined
+                    opcoes: tipo === 'escolha_multipla' ? ['Adequado', 'Não Adequado', 'Incerteza'] : undefined,
+                    custom_index: originalCampo?.customIndex
                 })
             } else {
                 const tipos = camposAtualizados[campoIndex].tipo_avaliacao
@@ -378,6 +395,76 @@ const GerirTemplate = () => {
                 }
                 return campo
             })
+
+            return {
+                ...prev,
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
+            }
+        })
+    }
+
+    // Index management functions
+    const updateCustomIndex = (campoId: string, newIndex: string) => {
+        if (!currentTemplate) return
+
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
+
+            const camposAtualizados = prev.conteudo.campos_avaliacao.map(campo => {
+                if (campo.campo_id === campoId) {
+                    return { ...campo, custom_index: newIndex }
+                }
+                return campo
+            })
+
+            return {
+                ...prev,
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: camposAtualizados
+                }
+            }
+        })
+    }
+
+    const moveCampo = (campoId: string, direction: 'up' | 'down') => {
+        if (!currentTemplate) return
+
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
+
+            const campos = [...prev.conteudo.campos_avaliacao]
+            const currentIndex = campos.findIndex(c => c.campo_id === campoId)
+            
+            if (currentIndex === -1) return prev
+            
+            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+            
+            if (newIndex < 0 || newIndex >= campos.length) return prev
+            
+            // Swap elements
+            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]]
+
+            return {
+                ...prev,
+                conteudo: {
+                    ...prev.conteudo,
+                    campos_avaliacao: campos
+                }
+            }
+        })
+    }
+
+    const removeCampoFromTemplate = (campoId: string) => {
+        if (!currentTemplate) return
+
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
+
+            const camposAtualizados = prev.conteudo.campos_avaliacao.filter(c => c.campo_id !== campoId)
 
             return {
                 ...prev,
@@ -513,29 +600,79 @@ const GerirTemplate = () => {
                                         </p>
                                     </div>
                                 ) : (
-                                    campos.map((campo) => {
-                                        const avaliacaoConfig = currentTemplate.conteudo.campos_avaliacao.find(c => c.campo_id === campo.id)
+                                    currentTemplate.conteudo.campos_avaliacao.map((avaliacaoConfig, templateIndex) => {
+                                        const campo = campos.find(c => c.id === avaliacaoConfig.campo_id)
+                                        if (!campo) return null
+                                        
                                         return (
-                                            <div key={campo.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                                            <div key={avaliacaoConfig.campo_id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
-                                                        <h4 className="font-medium text-gray-800">{campo.titulo}</h4>
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            {/* Index Management */}
+                                                            <div className="flex items-center gap-2">
+                                                                {editingIndex === avaliacaoConfig.campo_id ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={avaliacaoConfig.custom_index || ''}
+                                                                        onChange={(e) => updateCustomIndex(avaliacaoConfig.campo_id, e.target.value)}
+                                                                        onBlur={() => setEditingIndex(null)}
+                                                                        onKeyPress={(e) => e.key === 'Enter' && setEditingIndex(null)}
+                                                                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                                                        autoFocus
+                                                                    />
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setEditingIndex(avaliacaoConfig.campo_id)}
+                                                                        className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+                                                                    >
+                                                                        <span className="font-mono">{avaliacaoConfig.custom_index || 'N/A'}</span>
+                                                                        <Edit3 className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <h4 className="font-medium text-gray-800">{campo.titulo}</h4>
+                                                        </div>
                                                         <p className="text-sm text-gray-600 mt-1">{campo.descricao}</p>
                                                         <span className="inline-block mt-2 px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                                                             {campo.tipo}
                                                         </span>
                                                     </div>
+                                                    
+                                                    {/* Campo Controls */}
+                                                    <div className="flex flex-col gap-1 ml-4">
+                                                        <button
+                                                            onClick={() => moveCampo(avaliacaoConfig.campo_id, 'up')}
+                                                            disabled={templateIndex === 0}
+                                                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                                        >
+                                                            <ArrowUp className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => moveCampo(avaliacaoConfig.campo_id, 'down')}
+                                                            disabled={templateIndex === currentTemplate.conteudo.campos_avaliacao.length - 1}
+                                                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                                        >
+                                                            <ArrowDown className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => removeCampoFromTemplate(avaliacaoConfig.campo_id)}
+                                                            className="p-1 text-red-400 hover:text-red-600"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <div className="flex gap-4">
                                                     <button
-                                                        onClick={() => toggleAvaliacaoTipo(campo.id, 'texto')}
-                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('texto')
+                                                        onClick={() => toggleAvaliacaoTipo(avaliacaoConfig.campo_id, 'texto')}
+                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig.tipo_avaliacao.includes('texto')
                                                             ? 'bg-purple-100 text-purple-700'
                                                             : 'bg-gray-100 text-gray-700'
                                                             }`}
                                                     >
-                                                        {avaliacaoConfig?.tipo_avaliacao.includes('texto') ? (
+                                                        {avaliacaoConfig.tipo_avaliacao.includes('texto') ? (
                                                             <Check className="w-4 h-4 mr-2" />
                                                         ) : (
                                                             <X className="w-4 h-4 mr-2" />
@@ -544,13 +681,13 @@ const GerirTemplate = () => {
                                                     </button>
 
                                                     <button
-                                                        onClick={() => toggleAvaliacaoTipo(campo.id, 'escolha_multipla')}
-                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla')
+                                                        onClick={() => toggleAvaliacaoTipo(avaliacaoConfig.campo_id, 'escolha_multipla')}
+                                                        className={`flex items-center px-3 py-2 rounded-md ${avaliacaoConfig.tipo_avaliacao.includes('escolha_multipla')
                                                             ? 'bg-purple-100 text-purple-700'
                                                             : 'bg-gray-100 text-gray-700'
                                                             }`}
                                                     >
-                                                        {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') ? (
+                                                        {avaliacaoConfig.tipo_avaliacao.includes('escolha_multipla') ? (
                                                             <Check className="w-4 h-4 mr-2" />
                                                         ) : (
                                                             <X className="w-4 h-4 mr-2" />
@@ -559,7 +696,7 @@ const GerirTemplate = () => {
                                                     </button>
                                                 </div>
 
-                                                {avaliacaoConfig?.tipo_avaliacao.includes('escolha_multipla') && (
+                                                {avaliacaoConfig.tipo_avaliacao.includes('escolha_multipla') && (
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                                             Opções de Escolha
@@ -573,12 +710,12 @@ const GerirTemplate = () => {
                                                                         onChange={(e) => {
                                                                             const novasOpcoes = [...(avaliacaoConfig.opcoes || [])]
                                                                             novasOpcoes[index] = e.target.value
-                                                                            updateOpcoes(campo.id, novasOpcoes)
+                                                                            updateOpcoes(avaliacaoConfig.campo_id, novasOpcoes)
                                                                         }}
                                                                         className="flex-1 px-3 py-1 border border-gray-300 rounded-md text-sm"
                                                                     />
                                                                     <button
-                                                                        onClick={() => removeOpcao(campo.id, index)}
+                                                                        onClick={() => removeOpcao(avaliacaoConfig.campo_id, index)}
                                                                         className="px-2 py-1 text-red-600 hover:bg-red-50 rounded-md"
                                                                     >
                                                                         <Trash2 className="w-4 h-4" />
@@ -586,7 +723,7 @@ const GerirTemplate = () => {
                                                                 </div>
                                                             ))}
                                                             <button
-                                                                onClick={() => addOpcao(campo.id)}
+                                                                onClick={() => addOpcao(avaliacaoConfig.campo_id)}
                                                                 className="px-3 py-1 bg-purple-100 text-purple-700 rounded-md text-sm hover:bg-purple-200"
                                                             >
                                                                 + Adicionar Opção
@@ -597,6 +734,31 @@ const GerirTemplate = () => {
                                             </div>
                                         )
                                     })
+                                )}
+
+                                {/* Add remaining campos */}
+                                {campos.length > 0 && (
+                                    <div className="border-t pt-4">
+                                        <h4 className="text-md font-medium text-gray-700 mb-3">Adicionar Campos à Template</h4>
+                                        <div className="grid gap-2 md:grid-cols-2">
+                                            {campos
+                                                .filter(campo => !currentTemplate.conteudo.campos_avaliacao.some(c => c.campo_id === campo.id))
+                                                .map(campo => (
+                                                    <button
+                                                        key={campo.id}
+                                                        onClick={() => toggleAvaliacaoTipo(campo.id, 'texto')}
+                                                        className="p-3 text-left border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50"
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-mono">
+                                                                {campo.customIndex}
+                                                            </span>
+                                                            <span className="font-medium text-sm">{campo.titulo}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 
