@@ -238,8 +238,8 @@ app.get('/api/templates', async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    console.error('Erro ao buscar templates:', err);
-    res.status(500).json({ error: 'Erro ao buscar templates' });
+    console.error('Erro ao pesquisar templates:', err);
+    res.status(500).json({ error: 'Erro ao pesquisar templates' });
   }
 });
 
@@ -275,7 +275,7 @@ app.put('/api/templates/:id', [
       [nome, conteudo, id]
     );
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Template não encontrado' });
+      return res.status(404).json({ error: 'Template não encontrada' });
     }
     res.json(rows[0]);
   } catch (err) {
@@ -297,12 +297,12 @@ app.get('/api/templates/:id', [
     `, [id]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Template não encontrado' });
+      return res.status(404).json({ error: 'Template não encontrada' });
     }
     res.json(rows[0]);
   } catch (err) {
-    console.error('Erro ao buscar template:', err);
-    res.status(500).json({ error: 'Erro ao buscar template' });
+    console.error('Erro ao pesquisar template:', err);
+    res.status(500).json({ error: 'Erro ao pesquisar template' });
   }
 });
 
