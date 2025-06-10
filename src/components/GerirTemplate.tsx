@@ -29,7 +29,7 @@ interface CampoAvaliacao {
 interface Template {
     id: number
     nome: string
-    conteudo: string
+    conteudo: JSON
     fuc_id: number
     criado_por: number
     created_at: string
@@ -64,7 +64,7 @@ const GerirTemplate = () => {
 
         lines.forEach((line, index) => {
             const trimmedLine = line.trim()
-            
+
             const isMainSection = mainSectionRegex.test(trimmedLine)
             const isSubSection = subSectionRegex.test(trimmedLine)
 
@@ -143,7 +143,7 @@ const GerirTemplate = () => {
             ])
 
             setTemplates(templatesRes.data)
-            
+
             // Parse FUC content to extract campos
             const fucData = fucRes.data
             if (fucData.conteudo) {
@@ -215,7 +215,7 @@ const GerirTemplate = () => {
         setCurrentTemplate({
             id: 0,
             nome: '',
-            conteudo: '',
+            conteudo: JSON.parse(fucs.find(f => f.id === selectedFucId)?.conteudo || "{}"),
             fuc_id: selectedFucId,
             criado_por: user?.id || 0,
             created_at: new Date().toISOString(),
@@ -237,7 +237,7 @@ const GerirTemplate = () => {
         setCurrentTemplate({
             id: 0,
             nome: 'Template Universal - Avaliação Completa',
-            conteudo: 'Template universal com todas as opções de avaliação disponíveis para todos os campos da FUC.',
+            conteudo: JSON.parse("Template universal com todas as opções de avaliação disponíveis para todos os campos da FUC."),
             fuc_id: selectedFucId,
             criado_por: user?.id || 0,
             created_at: new Date().toISOString(),
@@ -429,7 +429,7 @@ const GerirTemplate = () => {
                                 <h3 className="text-lg font-medium text-gray-900">
                                     Campos para Avaliação ({campos.length} campos encontrados)
                                 </h3>
-                                
+
                                 {campos.length === 0 ? (
                                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                                         <p className="text-yellow-800">
