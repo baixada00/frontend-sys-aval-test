@@ -81,7 +81,7 @@ const GerirTemplate = () => {
                     const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
                     const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
                     const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
-                    
+
                     campos.push({
                         id: `campo_${campoCounter}`,
                         titulo: cleanTitle,
@@ -109,7 +109,7 @@ const GerirTemplate = () => {
             const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
             const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
             const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
-            
+
             campos.push({
                 id: `campo_${campoCounter}`,
                 titulo: cleanTitle,
@@ -163,7 +163,7 @@ const GerirTemplate = () => {
             // Parse templates and ensure proper structure
             const parsedTemplates = templatesRes.data.map((template: any) => ({
                 ...template,
-                conteudo: typeof template.conteudo === 'string' 
+                conteudo: typeof template.conteudo === 'string'
                     ? { campos_avaliacao: [], descricao: template.conteudo }
                     : template.conteudo
             }))
@@ -177,8 +177,8 @@ const GerirTemplate = () => {
             } else if (fucData.campos) {
                 // If campos are stored as JSON
                 try {
-                    const parsedCampos = typeof fucData.campos === 'string' 
-                        ? JSON.parse(fucData.campos) 
+                    const parsedCampos = typeof fucData.campos === 'string'
+                        ? JSON.parse(fucData.campos)
                         : fucData.campos
                     setCampos(Array.isArray(parsedCampos) ? parsedCampos : [])
                 } catch (e) {
@@ -431,22 +431,22 @@ const GerirTemplate = () => {
     }
 
     const moveCampo = (campoId: string, direction: 'up' | 'down') => {
-        if (!currentTemplate) return
+        if (!currentTemplate) return;
 
-        setCurrentTemplate(prev => {
-            if (!prev) return prev
+        setCurrentTemplate((prev): Template | null => {
+            if (!prev) return null;
 
-            const campos = [...prev.conteudo.campos_avaliacao]
-            const currentIndex = campos.findIndex(c => c.campo_id === campoId)
-            
-            if (currentIndex === -1) return prev
-            
-            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-            
-            if (newIndex < 0 || newIndex >= campos.length) return prev
-            
+            const campos = [...prev.conteudo.campos_avaliacao];
+            const currentIndex = campos.findIndex(c => c.campo_id === campoId);
+
+            if (currentIndex === -1) return prev;
+
+            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+            if (newIndex < 0 || newIndex >= campos.length) return prev;
+
             // Swap elements
-            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]]
+            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]];
 
             return {
                 ...prev,
@@ -454,9 +454,10 @@ const GerirTemplate = () => {
                     ...prev.conteudo,
                     campos_avaliacao: campos
                 }
-            }
-        })
-    }
+            };
+        });
+    };
+
 
     const removeCampoFromTemplate = (campoId: string) => {
         if (!currentTemplate) return
@@ -603,7 +604,7 @@ const GerirTemplate = () => {
                                     currentTemplate.conteudo.campos_avaliacao.map((avaliacaoConfig, templateIndex) => {
                                         const campo = campos.find(c => c.id === avaliacaoConfig.campo_id)
                                         if (!campo) return null
-                                        
+
                                         return (
                                             <div key={avaliacaoConfig.campo_id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                                                 <div className="flex items-start justify-between">
@@ -638,7 +639,7 @@ const GerirTemplate = () => {
                                                             {campo.tipo}
                                                         </span>
                                                     </div>
-                                                    
+
                                                     {/* Campo Controls */}
                                                     <div className="flex flex-col gap-1 ml-4">
                                                         <button
