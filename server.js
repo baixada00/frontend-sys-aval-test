@@ -47,7 +47,6 @@ const validate = (req, res, next) => {
   }
   next();
 };
-
 // Get unloaded FUC files
 app.get('/api/fucs/files/unloaded', async (req, res) => {
   try {
@@ -525,6 +524,68 @@ app.get('/api/relatorios/:fucId', async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar relatórios da FUC:", error);
     res.status(500).json({ error: "Erro ao buscar relatórios da FUC" });
+  }
+});
+
+// Endpoint 3: Relatório gravar
+app.post('/api/relatorios/gravar', [
+  body('fuc_id').isInt().withMessage('FUC ID deve ser um número'),
+  body('avaliador_id').isInt().withMessage('Avaliador ID deve ser um número'),
+  body('respostas').isObject().withMessage('Respostas devem ser um objeto')
+], validate, async (req, res) => {
+  const { fuc_id, avaliador_id, respostas } = req.body;
+
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO avaliacoes (fuc_id, avaliador_id, respostas) VALUES ($1, $2, $3) RETURNING *',
+      [fuc_id, avaliador_id, JSON.stringify(respostas)]
+    );
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error("Erro ao gravar relatório:", error);
+    res.status(500).json({ error: "Erro ao gravar relatório" });
+  }
+});
+
+// Endpoint 4: Relatório submeter
+app.post('/api/relatorios/submeter', [
+  body('id').isInt().withMessage('ID deve ser um número'),
+  body('comentario').optional().isString().trim().withMessage('Comentário deve ser uma string')
+], validate, async (req, res) => {
+  const { id, comentario } = req.body;
+
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE avaliacoes SET respostas = respostas || $1 WHERE id = $2',
+      [JSON.stringify({ submetido: 'true', comentario }), id]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Relatório não encontrado' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Erro ao submeter relatório:", error);
+    res.status(500).json({ error: "Erro ao submeter relatório" });
+  }
+});
+
+// Endpoint 5: Relatório apagar
+app.delete('/api/relatorios/:id', [
+  param('id').isInt().withMessage('ID deve ser um número')
+], validate, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { rowCount } = await pool.query('DELETE FROM avaliacoes WHERE id = $1', [id]);
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Relatório não encontrado' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao apagar relatório:", error);
+    res.status(500).json({ error: "Erro ao apagar relatório" });
   }
 });
 
