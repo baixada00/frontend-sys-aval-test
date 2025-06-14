@@ -17,7 +17,8 @@ interface Campo {
     titulo: string
     descricao: string
     tipo: string
-    customIndex?: string // Add custom index support
+    originalIndex?: string
+    displayIndex?: string
 }
 
 interface CampoAvaliacao {
@@ -25,7 +26,8 @@ interface CampoAvaliacao {
     titulo: string
     tipo_avaliacao: ('texto' | 'escolha_multipla')[]
     opcoes?: string[]
-    custom_index?: string // Add custom index support
+    display_index?: string
+    ordem?: number
 }
 
 interface Template {
@@ -54,72 +56,100 @@ const GerirTemplate = () => {
     const [saving, setSaving] = useState(false)
     const [editingIndex, setEditingIndex] = useState<string | null>(null)
 
-    // Function to parse FUC content and extract campos with unique IDs
+    // Enhanced FUC content parser with better index handling
     const parseFucContent = (content: string): Campo[] => {
         if (!content) return []
 
-        const lines = content.split('\n')
+        const lines = content.split('\n').map(line => line.trim()).filter(line => line.length > 0)
         const campos: Campo[] = []
         let currentCampo: Partial<Campo> = {}
         let descriptionLines: string[] = []
         let campoCounter = 1
 
-        // Regex patterns for different section types
-        const mainSectionRegex = /^\d+\.(?!\d)/
-        const subSectionRegex = /^\d+\.\d+\./
+        // Enhanced regex patterns for better section detection
+        const mainSectionRegex = /^(\d+)\.\s*(.+)/
+        const subSectionRegex = /^(\d+\.\d+)\.\s*(.+)/
+        const deepSubSectionRegex = /^(\d+\.\d+\.\d+)\.\s*(.+)/
 
-        lines.forEach((line, index) => {
-            const trimmedLine = line.trim()
-
-            const isMainSection = mainSectionRegex.test(trimmedLine)
-            const isSubSection = subSectionRegex.test(trimmedLine)
-
-            if (isMainSection || isSubSection) {
-                // Save previous campo if it exists
-                if (currentCampo.titulo && descriptionLines.length > 0) {
-                    // Extract original index from title
-                    const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
-                    const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
-                    const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
-
+        const processCurrentCampo = () => {
+            if (currentCampo.titulo && descriptionLines.length > 0) {
+                const cleanDescription = descriptionLines.join('\n').trim()
+                
+                // Only add if there's meaningful content
+                if (cleanDescription.length > 0) {
                     campos.push({
                         id: `campo_${campoCounter}`,
-                        titulo: cleanTitle,
-                        descricao: descriptionLines.join('\n').trim(),
-                        tipo: isSubSection ? 'subcampo' : 'campo',
-                        customIndex: originalIndex
+                        titulo: currentCampo.titulo,
+                        descricao: cleanDescription,
+                        tipo: currentCampo.tipo || 'campo',
+                        originalIndex: currentCampo.originalIndex,
+                        displayIndex: currentCampo.displayIndex
                     })
                     campoCounter++
                 }
+            }
+        }
 
-                // Start new campo
+        lines.forEach((line) => {
+            // Check for deep subsection first (most specific)
+            const deepSubMatch = deepSubSectionRegex.exec(line)
+            if (deepSubMatch) {
+                processCurrentCampo()
                 currentCampo = {
-                    titulo: trimmedLine,
-                    tipo: isSubSection ? 'subcampo' : 'campo'
+                    titulo: deepSubMatch[2].trim(),
+                    tipo: 'subcampo',
+                    originalIndex: deepSubMatch[1],
+                    displayIndex: deepSubMatch[1]
                 }
                 descriptionLines = []
-            } else if (trimmedLine) {
-                // Add to description
-                descriptionLines.push(trimmedLine)
+                return
+            }
+
+            // Check for subsection
+            const subMatch = subSectionRegex.exec(line)
+            if (subMatch) {
+                processCurrentCampo()
+                currentCampo = {
+                    titulo: subMatch[2].trim(),
+                    tipo: 'subcampo',
+                    originalIndex: subMatch[1],
+                    displayIndex: subMatch[1]
+                }
+                descriptionLines = []
+                return
+            }
+
+            // Check for main section
+            const mainMatch = mainSectionRegex.exec(line)
+            if (mainMatch) {
+                processCurrentCampo()
+                currentCampo = {
+                    titulo: mainMatch[2].trim(),
+                    tipo: 'campo',
+                    originalIndex: mainMatch[1],
+                    displayIndex: mainMatch[1]
+                }
+                descriptionLines = []
+                return
+            }
+
+            // Add to description if not a section header
+            if (line && !line.match(/^\d+\./) && currentCampo.titulo) {
+                descriptionLines.push(line)
             }
         })
 
-        // Don't forget the last campo
-        if (currentCampo.titulo && descriptionLines.length > 0) {
-            const indexMatch = currentCampo.titulo.match(/^(\d+(?:\.\d+)*)\.\s*(.+)/)
-            const originalIndex = indexMatch ? indexMatch[1] : campoCounter.toString()
-            const cleanTitle = indexMatch ? indexMatch[2] : currentCampo.titulo
+        // Process the last campo
+        processCurrentCampo()
 
-            campos.push({
-                id: `campo_${campoCounter}`,
-                titulo: cleanTitle,
-                descricao: descriptionLines.join('\n').trim(),
-                tipo: currentCampo.tipo || 'campo',
-                customIndex: originalIndex
-            })
-        }
-
-        return campos
+        // Filter out campos with only index and no meaningful title
+        return campos.filter(campo => 
+            campo.titulo && 
+            campo.titulo.length > 0 && 
+            !campo.titulo.match(/^\d+\.?\s*$/) && // Not just numbers
+            campo.descricao && 
+            campo.descricao.length > 0
+        )
     }
 
     useEffect(() => {
@@ -128,12 +158,10 @@ const GerirTemplate = () => {
                 setLoading(true)
                 setError(null)
 
-                // Fetch all enabled FUCs for gestor
                 const response = await axios.get(`${API_BASE}/api/fucs`)
                 const enabledFucs = response.data.filter((fuc: FUC) => fuc.enabled)
                 setFucs(enabledFucs)
 
-                // If a specific FUC ID was provided, load its data
                 if (selectedFucId) {
                     const selectedFuc = enabledFucs.find((fuc: FUC) => fuc.id === selectedFucId)
                     if (!selectedFuc) {
@@ -160,12 +188,15 @@ const GerirTemplate = () => {
                 axios.get(`${API_BASE}/api/fucs/${fucId}`)
             ])
 
-            // Parse templates and ensure proper structure
+            // Parse templates with proper structure
             const parsedTemplates = templatesRes.data.map((template: any) => ({
                 ...template,
-                conteudo: typeof template.conteudo === 'string'
+                conteudo: typeof template.conteudo === 'string' 
                     ? { campos_avaliacao: [], descricao: template.conteudo }
-                    : template.conteudo
+                    : {
+                        campos_avaliacao: template.conteudo.campos_avaliacao || [],
+                        descricao: template.conteudo.descricao || ''
+                    }
             }))
             setTemplates(parsedTemplates)
 
@@ -174,17 +205,6 @@ const GerirTemplate = () => {
             if (fucData.conteudo) {
                 const extractedCampos = parseFucContent(fucData.conteudo)
                 setCampos(extractedCampos)
-            } else if (fucData.campos) {
-                // If campos are stored as JSON
-                try {
-                    const parsedCampos = typeof fucData.campos === 'string'
-                        ? JSON.parse(fucData.campos)
-                        : fucData.campos
-                    setCampos(Array.isArray(parsedCampos) ? parsedCampos : [])
-                } catch (e) {
-                    console.error('Error parsing campos JSON:', e)
-                    setCampos([])
-                }
             } else {
                 setCampos([])
             }
@@ -207,9 +227,17 @@ const GerirTemplate = () => {
 
         try {
             setSaving(true)
+            
+            // Ensure proper JSON structure for template content
             const templateData = {
                 nome: currentTemplate.nome,
-                conteudo: currentTemplate.conteudo,
+                conteudo: {
+                    campos_avaliacao: currentTemplate.conteudo.campos_avaliacao.map((campo, index) => ({
+                        ...campo,
+                        ordem: index + 1
+                    })),
+                    descricao: currentTemplate.conteudo.descricao || ''
+                },
                 fuc_id: selectedFucId,
                 criado_por: user?.id
             }
@@ -263,12 +291,13 @@ const GerirTemplate = () => {
         if (!selectedFucId) return
 
         // Create a universal template with all evaluation options for all campos
-        const universalCamposAvaliacao: CampoAvaliacao[] = campos.map(campo => ({
+        const universalCamposAvaliacao: CampoAvaliacao[] = campos.map((campo, index) => ({
             campo_id: campo.id,
             titulo: campo.titulo,
             tipo_avaliacao: ['texto', 'escolha_multipla'],
             opcoes: ['Adequado', 'Não Adequado', 'Incerteza', 'Necessita Revisão', 'Excelente'],
-            custom_index: campo.customIndex
+            display_index: campo.displayIndex || `${index + 1}`,
+            ordem: index + 1
         }))
 
         setCurrentTemplate({
@@ -300,7 +329,8 @@ const GerirTemplate = () => {
                     titulo: originalCampo?.titulo || '',
                     tipo_avaliacao: [tipo],
                     opcoes: tipo === 'escolha_multipla' ? ['Adequado', 'Não Adequado', 'Incerteza'] : undefined,
-                    custom_index: originalCampo?.customIndex
+                    display_index: originalCampo?.displayIndex || '',
+                    ordem: camposAtualizados.length + 1
                 })
             } else {
                 const tipos = camposAtualizados[campoIndex].tipo_avaliacao
@@ -406,8 +436,7 @@ const GerirTemplate = () => {
         })
     }
 
-    // Index management functions
-    const updateCustomIndex = (campoId: string, newIndex: string) => {
+    const updateDisplayIndex = (campoId: string, newIndex: string) => {
         if (!currentTemplate) return
 
         setCurrentTemplate(prev => {
@@ -415,7 +444,7 @@ const GerirTemplate = () => {
 
             const camposAtualizados = prev.conteudo.campos_avaliacao.map(campo => {
                 if (campo.campo_id === campoId) {
-                    return { ...campo, custom_index: newIndex }
+                    return { ...campo, display_index: newIndex }
                 }
                 return campo
             })
@@ -431,22 +460,27 @@ const GerirTemplate = () => {
     }
 
     const moveCampo = (campoId: string, direction: 'up' | 'down') => {
-        if (!currentTemplate) return;
+        if (!currentTemplate) return
 
-        setCurrentTemplate((prev): Template | null => {
-            if (!prev) return null;
+        setCurrentTemplate(prev => {
+            if (!prev) return prev
 
-            const campos = [...prev.conteudo.campos_avaliacao];
-            const currentIndex = campos.findIndex(c => c.campo_id === campoId);
-
-            if (currentIndex === -1) return prev;
-
-            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-
-            if (newIndex < 0 || newIndex >= campos.length) return prev;
-
+            const campos = [...prev.conteudo.campos_avaliacao]
+            const currentIndex = campos.findIndex(c => c.campo_id === campoId)
+            
+            if (currentIndex === -1) return prev
+            
+            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+            
+            if (newIndex < 0 || newIndex >= campos.length) return prev
+            
             // Swap elements
-            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]];
+            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]]
+
+            // Update ordem
+            campos.forEach((campo, index) => {
+                campo.ordem = index + 1
+            })
 
             return {
                 ...prev,
@@ -454,10 +488,9 @@ const GerirTemplate = () => {
                     ...prev.conteudo,
                     campos_avaliacao: campos
                 }
-            };
-        });
-    };
-
+            }
+        })
+    }
 
     const removeCampoFromTemplate = (campoId: string) => {
         if (!currentTemplate) return
@@ -604,22 +637,22 @@ const GerirTemplate = () => {
                                     currentTemplate.conteudo.campos_avaliacao.map((avaliacaoConfig, templateIndex) => {
                                         const campo = campos.find(c => c.id === avaliacaoConfig.campo_id)
                                         if (!campo) return null
-
+                                        
                                         return (
                                             <div key={avaliacaoConfig.campo_id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            {/* Index Management */}
+                                                            {/* Enhanced Index Management */}
                                                             <div className="flex items-center gap-2">
                                                                 {editingIndex === avaliacaoConfig.campo_id ? (
                                                                     <input
                                                                         type="text"
-                                                                        value={avaliacaoConfig.custom_index || ''}
-                                                                        onChange={(e) => updateCustomIndex(avaliacaoConfig.campo_id, e.target.value)}
+                                                                        value={avaliacaoConfig.display_index || ''}
+                                                                        onChange={(e) => updateDisplayIndex(avaliacaoConfig.campo_id, e.target.value)}
                                                                         onBlur={() => setEditingIndex(null)}
                                                                         onKeyPress={(e) => e.key === 'Enter' && setEditingIndex(null)}
-                                                                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                                                                        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"
                                                                         autoFocus
                                                                     />
                                                                 ) : (
@@ -627,7 +660,7 @@ const GerirTemplate = () => {
                                                                         onClick={() => setEditingIndex(avaliacaoConfig.campo_id)}
                                                                         className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
                                                                     >
-                                                                        <span className="font-mono">{avaliacaoConfig.custom_index || 'N/A'}</span>
+                                                                        <span className="font-mono">{avaliacaoConfig.display_index || 'N/A'}</span>
                                                                         <Edit3 className="w-3 h-3" />
                                                                     </button>
                                                                 )}
@@ -639,7 +672,7 @@ const GerirTemplate = () => {
                                                             {campo.tipo}
                                                         </span>
                                                     </div>
-
+                                                    
                                                     {/* Campo Controls */}
                                                     <div className="flex flex-col gap-1 ml-4">
                                                         <button
@@ -752,7 +785,7 @@ const GerirTemplate = () => {
                                                     >
                                                         <div className="flex items-center gap-2">
                                                             <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-mono">
-                                                                {campo.customIndex}
+                                                                {campo.displayIndex}
                                                             </span>
                                                             <span className="font-medium text-sm">{campo.titulo}</span>
                                                         </div>

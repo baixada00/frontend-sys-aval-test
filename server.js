@@ -47,6 +47,7 @@ const validate = (req, res, next) => {
   }
   next();
 };
+
 // Get unloaded FUC files
 app.get('/api/fucs/files/unloaded', async (req, res) => {
   try {
@@ -536,11 +537,27 @@ app.post('/api/relatorios/gravar', [
   const { fuc_id, avaliador_id, respostas } = req.body;
 
   try {
-    const { rows } = await pool.query(
-      'INSERT INTO avaliacoes (fuc_id, avaliador_id, respostas) VALUES ($1, $2, $3) RETURNING *',
-      [fuc_id, avaliador_id, JSON.stringify(respostas)]
+    // Check if evaluation already exists for this user and FUC
+    const existingEvaluation = await pool.query(
+      'SELECT id FROM avaliacoes WHERE fuc_id = $1 AND avaliador_id = $2',
+      [fuc_id, avaliador_id]
     );
-    res.status(201).json(rows[0]);
+
+    if (existingEvaluation.rows.length > 0) {
+      // Update existing evaluation
+      const { rows } = await pool.query(
+        'UPDATE avaliacoes SET respostas = $1 WHERE fuc_id = $2 AND avaliador_id = $3 RETURNING *',
+        [JSON.stringify(respostas), fuc_id, avaliador_id]
+      );
+      res.json(rows[0]);
+    } else {
+      // Create new evaluation
+      const { rows } = await pool.query(
+        'INSERT INTO avaliacoes (fuc_id, avaliador_id, respostas) VALUES ($1, $2, $3) RETURNING *',
+        [fuc_id, avaliador_id, JSON.stringify(respostas)]
+      );
+      res.status(201).json(rows[0]);
+    }
   } catch (error) {
     console.error("Erro ao gravar relatório:", error);
     res.status(500).json({ error: "Erro ao gravar relatório" });
