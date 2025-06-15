@@ -51,7 +51,7 @@ const AvaliacaoFUC = () => {
     const [searchParams] = useSearchParams()
     const templateId = searchParams.get('template')
     const { user } = useUser()
-    
+
     const [fuc, setFuc] = useState<FUC | null>(null)
     const [template, setTemplate] = useState<Template | null>(null)
     const [campos, setCampos] = useState<Campo[]>([])
@@ -78,7 +78,7 @@ const AvaliacaoFUC = () => {
         const processCurrentCampo = () => {
             if (currentCampo.titulo && descriptionLines.length > 0) {
                 const cleanDescription = descriptionLines.join('\n').trim()
-                
+
                 if (cleanDescription.length > 0) {
                     campos.push({
                         id: `campo_${campoCounter}`,
@@ -136,11 +136,11 @@ const AvaliacaoFUC = () => {
 
         processCurrentCampo()
 
-        return campos.filter(campo => 
-            campo.titulo && 
-            campo.titulo.length > 0 && 
+        return campos.filter(campo =>
+            campo.titulo &&
+            campo.titulo.length > 0 &&
             !campo.titulo.match(/^\d+\.?\s*$/) &&
-            campo.descricao && 
+            campo.descricao &&
             campo.descricao.length > 0
         )
     }
@@ -175,7 +175,7 @@ const AvaliacaoFUC = () => {
                 // Parse template content
                 const parsedTemplate = {
                     ...templateData,
-                    conteudo: typeof templateData.conteudo === 'string' 
+                    conteudo: typeof templateData.conteudo === 'string'
                         ? { campos_avaliacao: [], descricao: templateData.conteudo }
                         : templateData.conteudo
                 }
@@ -225,7 +225,7 @@ const AvaliacaoFUC = () => {
 
         try {
             setSaving(true)
-            
+
             const avaliacaoData = {
                 fuc_id: fuc.id,
                 avaliador_id: user.id,
@@ -251,7 +251,7 @@ const AvaliacaoFUC = () => {
 
         try {
             setSubmitting(true)
-            
+
             const avaliacaoData = {
                 fuc_id: fuc.id,
                 avaliador_id: user.id,
@@ -351,9 +351,9 @@ const AvaliacaoFUC = () => {
                                         </span>
                                     </div>
 
-                                    {/* Evaluation Controls */}
+                                    {/* Avaliacao Controls */}
                                     <div className="w-80 space-y-4">
-                                        {/* Text Evaluation */}
+                                        {/* Texto Aval */}
                                         {campoConfig.tipo_avaliacao.includes('texto') && (
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -369,7 +369,7 @@ const AvaliacaoFUC = () => {
                                             </div>
                                         )}
 
-                                        {/* Multiple Choice Evaluation */}
+                                        {/* Multipla Escolha Avaliação */}
                                         {campoConfig.tipo_avaliacao.includes('escolha_multipla') && campoConfig.opcoes && (
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -390,7 +390,7 @@ const AvaliacaoFUC = () => {
                                             </div>
                                         )}
 
-                                        {/* Additional Comments */}
+                                        {/* Comentários Adicionais */}
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 Comentários Adicionais (Opcional)
@@ -410,7 +410,7 @@ const AvaliacaoFUC = () => {
                     })}
             </div>
 
-            {/* Action Buttons */}
+            {/* Botoes Acao */}
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-end gap-4">
                     <button
@@ -432,7 +432,7 @@ const AvaliacaoFUC = () => {
                 </div>
             </div>
 
-            {/* Bottom spacing for fixed buttons */}
+            {/*Espaçamento inferior para os botões fixos*/}
             <div className="h-20"></div>
         </div>
     )
