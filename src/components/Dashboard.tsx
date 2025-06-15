@@ -5,6 +5,7 @@ import { FileText, CheckCircle, RefreshCw, AlertCircle, Settings } from 'lucide-
 import { useUser } from '../context/UserContext'
 import { API_BASE } from '../config/api'
 
+
 interface Template {
   id: number
   nome: string
@@ -32,6 +33,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Vai buscar os dados da dashboard ao servidor
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
@@ -41,7 +43,7 @@ const Dashboard = () => {
       const rawFucs: FUC[] = Array.isArray(response.data.fucs) ? response.data.fucs : []
 
       if (user?.activeRole === 'avaliador') {
-        // Avaliador: Only see enabled FUCs with templates
+        // Avaliador: Só vê FUCs ativas com templates
         const fucsWithTemplates = await Promise.all(
           rawFucs
             .filter((fuc: FUC) => fuc.enabled)
@@ -60,11 +62,11 @@ const Dashboard = () => {
         )
         setDashboardData({ fucs: fucsWithTemplates })
       } else if (user?.activeRole === 'gestor') {
-        // Gestor: Only see enabled FUCs for template management
+        // Gestor: Só vê FUCs ativas para gestão de templates
         const enabledFucs = rawFucs.filter((fuc: FUC) => fuc.enabled)
         setDashboardData({ fucs: enabledFucs })
       } else {
-        // Admin: See all FUCs
+        // Admin: Vê todas as FUCs
         setDashboardData({ fucs: rawFucs })
       }
     } catch (error) {
@@ -79,8 +81,8 @@ const Dashboard = () => {
     fetchDashboardData()
   }, [user])
 
+  // Navega para a página de avaliação com o ID da template
   const handleTemplateSelect = (templateId: number, fucId: string) => {
-    // Navigate directly to the evaluation page with template ID
     navigate(`/avaliacao-fuc/${fucId}?template=${templateId}`)
   }
 
@@ -110,7 +112,7 @@ const Dashboard = () => {
           <div>
             <h1 className="text-2xl font-bold text-purple-900 mb-2">Sistema de Avaliação de FUCs</h1>
             <p className="text-gray-600">
-              {user?.activeRole === 'admin' && 'Gerencie FUCs, usuários e visualize relatórios.'}
+              {user?.activeRole === 'admin' && 'Gerencie FUCs, utilizadores e visualize relatórios.'}
               {user?.activeRole === 'gestor' && 'Gerencie templates para FUCs habilitadas.'}
               {user?.activeRole === 'avaliador' && 'Avalie FUCs usando os templates disponíveis.'}
             </p>
@@ -197,7 +199,7 @@ const Dashboard = () => {
                         className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
                       >
                         <Settings className="w-4 h-4 mr-2" />
-                        Gerenciar Templates
+                        Gerir Templates
                       </Link>
                     ) : (
                       <Link
