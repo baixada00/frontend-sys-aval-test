@@ -9,7 +9,6 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const fucDir = path.join(__dirname, 'data/fucs');
 
-
 // assegura diretoria de FUCs existe
 if (!fs.existsSync(fucDir)) {
   fs.mkdirSync(fucDir, { recursive: true });
@@ -77,11 +76,9 @@ app.post('/api/fucs/rascunho', [
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
 
-  //veirifcaçao de dados
   console.log('Dados recebidos para rascunho:', { titulo, tipo, campos, conteudo });
 
-  // Simular origem do .txt (user poderia estar na sessão/autenticação num sistema real)
-  const importadoPor = req.headers['x-importado-por'] || 'admin'; // fallback para "admin"
+  const importadoPor = req.headers['x-importado-por'] || 'admin';
   const path = `importado_txt_${importadoPor}_${Date.now()}.txt`;
 
   try {
@@ -105,10 +102,7 @@ app.post('/api/fucs/finalizar', [
 ], validate, async (req, res) => {
   const { titulo, tipo, campos, conteudo } = req.body;
 
-
-
   try {
-    //veirifcaçao de dados
     console.log('Dados recebidos para finalizar:', { titulo, tipo, campos, conteudo });
 
     const { rows } = await pool.query(
@@ -166,6 +160,31 @@ app.get('/api/fucs/:id', [
   }
 });
 
+// Update FUC content
+app.put('/api/fucs/:id', [
+  param('id').isInt().withMessage('ID must be an integer'),
+  body('conteudo').notEmpty().withMessage('Conteúdo é obrigatório')
+], validate, async (req, res) => {
+  const { id } = req.params;
+  const { conteudo } = req.body;
+  
+  try {
+    const { rows } = await pool.query(
+      'UPDATE fucs SET conteudo = $1 WHERE id = $2 RETURNING *',
+      [conteudo, id]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'FUC não encontrada' });
+    }
+    
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Erro ao atualizar FUC:', err);
+    res.status(500).json({ error: 'Erro ao atualizar FUC' });
+  }
+});
+
 // Get all FUCs
 app.get('/api/fucs', async (req, res) => {
   try {
@@ -204,7 +223,7 @@ app.get('/api/dashboard', async (req, res) => {
   try {
     const { rows: fucs } = await pool.query(`
       SELECT f.*, 
-        COUNT(DISTINCT CASE WHEN a.respostas IS NOT NULL THEN a.id END) as avaliacoes_count
+        COUNT(DISTINCT CASE WHEN a.respostas ? 'estado' AND a.respostas->>'estado' = 'submetido' THEN a.id END) as avaliacoes_count
       FROM fucs f
       LEFT JOIN avaliacoes a ON f.id = a.fuc_id
       GROUP BY f.id
@@ -325,14 +344,12 @@ app.post('/api/users', [
   const { username, roles } = req.body;
 
   try {
-    // Criar utilizador
     const { rows } = await pool.query(
       'INSERT INTO users (username) VALUES ($1) RETURNING id, username, created_at',
       [username]
     );
     const user = rows[0];
 
-    // Inserir roles
     for (const role of roles) {
       await pool.query(
         'INSERT INTO user_roles (user_id, role) VALUES ($1, $2)',
@@ -351,7 +368,6 @@ app.post('/api/users', [
   }
 });
 
-// Obter todos os utilizadores com os seus cargos
 app.get('/api/users', async (req, res) => {
   try {
     const { rows: users } = await pool.query('SELECT id, username, created_at FROM users ORDER BY username');
@@ -366,7 +382,6 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// Atualizar cargos de um utilizador
 app.patch('/api/users/:id', [
   param('id').isInt().withMessage('ID inválido'),
   body('roles').isArray({ min: 1 }).withMessage('Pelo menos um role deve ser fornecido'),
@@ -376,10 +391,8 @@ app.patch('/api/users/:id', [
   const { roles } = req.body;
 
   try {
-    // Apagar cargos antigos
     await pool.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
 
-    // Inserir novos cargos
     for (const role of roles) {
       await pool.query('INSERT INTO user_roles (user_id, role) VALUES ($1, $2)', [id, role]);
     }
@@ -391,7 +404,6 @@ app.patch('/api/users/:id', [
   }
 });
 
-// Apagar utilizador
 app.delete('/api/users/:id', [
   param('id').isInt().withMessage('ID inválido')
 ], validate, async (req, res) => {
@@ -436,7 +448,6 @@ app.post('/api/users/verify', [
   }
 });
 
-
 app.post('/api/users/verify-role', [
   body('username').notEmpty().trim().withMessage('Username é obrigatório'),
   body('role').isIn(['admin', 'gestor', 'avaliador']).withMessage('Cargo inválido')
@@ -471,26 +482,98 @@ app.post('/api/users/verify-role', [
   }
 });
 
-//endpoints relatorios e avaliacoes
+// Enhanced Evaluation endpoints
+app.get('/api/avaliacoes/rascunhos/:userId', [
+  param('userId').isInt().withMessage('User ID must be an integer')
+], validate, async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        a.id,
+        a.fuc_id,
+        a.template_id,
+        a.created_at,
+        f.titulo as fuc_nome,
+        t.nome as template_nome
+      FROM avaliacoes a
+      JOIN fucs f ON a.fuc_id = f.id
+      LEFT JOIN templates t ON a.template_id = t.id
+      WHERE a.avaliador_id = $1 
+      AND (a.respostas->>'estado' = 'rascunho' OR a.respostas->>'estado' IS NULL)
+      ORDER BY a.created_at DESC
+    `, [userId]);
+    
+    res.json(rows);
+  } catch (error) {
+    console.error('Erro ao buscar rascunhos:', error);
+    res.status(500).json({ error: 'Erro ao buscar rascunhos' });
+  }
+});
 
-// Endpoint 1: Todos os relatórios
+app.get('/api/avaliacoes/:id', [
+  param('id').isInt().withMessage('ID must be an integer')
+], validate, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { rows } = await pool.query('SELECT * FROM avaliacoes WHERE id = $1', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Avaliação não encontrada' });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Erro ao buscar avaliação:', error);
+    res.status(500).json({ error: 'Erro ao buscar avaliação' });
+  }
+});
+
+app.put('/api/avaliacoes/:id', [
+  param('id').isInt().withMessage('ID must be an integer'),
+  body('respostas').isObject().withMessage('Respostas devem ser um objeto')
+], validate, async (req, res) => {
+  const { id } = req.params;
+  const { respostas } = req.body;
+  
+  try {
+    const { rows } = await pool.query(
+      'UPDATE avaliacoes SET respostas = $1 WHERE id = $2 RETURNING *',
+      [JSON.stringify(respostas), id]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Avaliação não encontrada' });
+    }
+    
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar avaliação:', error);
+    res.status(500).json({ error: 'Erro ao atualizar avaliação' });
+  }
+});
+
+// Enhanced Reports endpoints
 app.get('/api/relatorios', async (req, res) => {
   try {
     const query = `
-          SELECT 
-              a.id,
-              a.fuc_id,
-              u.username AS avaliador,
-              CASE 
-                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
-                  ELSE 'gravado'
-              END AS status,
-              a.created_at AS data,
-              COALESCE(a.respostas->>'comentario', '') AS comentario
-          FROM avaliacoes a
-          LEFT JOIN users u ON u.id = a.avaliador_id
-          ORDER BY a.created_at DESC
-      `;
+      SELECT 
+        a.id,
+        a.fuc_id,
+        f.titulo as fuc_titulo,
+        u.username AS avaliador,
+        CASE 
+          WHEN a.respostas ? 'estado' AND a.respostas->>'estado' = 'submetido' THEN 'submetido'
+          ELSE 'gravado'
+        END AS status,
+        a.created_at AS data,
+        COALESCE(a.respostas->>'comentario', '') AS comentario,
+        a.respostas
+      FROM avaliacoes a
+      LEFT JOIN users u ON u.id = a.avaliador_id
+      LEFT JOIN fucs f ON f.id = a.fuc_id
+      ORDER BY a.created_at DESC
+    `;
     const { rows } = await pool.query(query);
     res.json(rows);
   } catch (error) {
@@ -499,27 +582,29 @@ app.get('/api/relatorios', async (req, res) => {
   }
 });
 
-// Endpoint 2: Relatórios por FUC especifica
 app.get('/api/relatorios/:fucId', async (req, res) => {
   const { fucId } = req.params;
 
   try {
     const query = `
-          SELECT 
-              a.id,
-              a.fuc_id,
-              u.username AS avaliador,
-              CASE 
-                  WHEN a.respostas ? 'submetido' AND a.respostas->>'submetido' = 'true' THEN 'submetido'
-                  ELSE 'gravado'
-              END AS status,
-              a.created_at AS data,
-              COALESCE(a.respostas->>'comentario', '') AS comentario
-          FROM avaliacoes a
-          LEFT JOIN users u ON u.id = a.avaliador_id
-          WHERE a.fuc_id = $1
-          ORDER BY a.created_at DESC
-      `;
+      SELECT 
+        a.id,
+        a.fuc_id,
+        f.titulo as fuc_titulo,
+        u.username AS avaliador,
+        CASE 
+          WHEN a.respostas ? 'estado' AND a.respostas->>'estado' = 'submetido' THEN 'submetido'
+          ELSE 'gravado'
+        END AS status,
+        a.created_at AS data,
+        COALESCE(a.respostas->>'comentario', '') AS comentario,
+        a.respostas
+      FROM avaliacoes a
+      LEFT JOIN users u ON u.id = a.avaliador_id
+      LEFT JOIN fucs f ON f.id = a.fuc_id
+      WHERE a.fuc_id = $1
+      ORDER BY a.created_at DESC
+    `;
     const { rows } = await pool.query(query, [fucId]);
     res.json(rows);
   } catch (error) {
@@ -528,44 +613,39 @@ app.get('/api/relatorios/:fucId', async (req, res) => {
   }
 });
 
-// Endpoint 3: Relatório gravar
-app.post('/api/relatorios/gravar', [
+app.post('/api/avaliacoes/gravar', [
   body('fuc_id').isInt().withMessage('FUC ID deve ser um número'),
   body('avaliador_id').isInt().withMessage('Avaliador ID deve ser um número'),
   body('respostas').isObject().withMessage('Respostas devem ser um objeto')
 ], validate, async (req, res) => {
-  const { fuc_id, avaliador_id, respostas } = req.body;
+  const { fuc_id, avaliador_id, template_id, respostas } = req.body;
 
   try {
-    // Check if evaluation already exists for this user and FUC
     const existingEvaluation = await pool.query(
-      'SELECT id FROM avaliacoes WHERE fuc_id = $1 AND avaliador_id = $2',
-      [fuc_id, avaliador_id]
+      'SELECT id FROM avaliacoes WHERE fuc_id = $1 AND avaliador_id = $2 AND template_id = $3',
+      [fuc_id, avaliador_id, template_id]
     );
 
     if (existingEvaluation.rows.length > 0) {
-      // Update existing evaluation
       const { rows } = await pool.query(
-        'UPDATE avaliacoes SET respostas = $1 WHERE fuc_id = $2 AND avaliador_id = $3 RETURNING *',
-        [JSON.stringify(respostas), fuc_id, avaliador_id]
+        'UPDATE avaliacoes SET respostas = $1 WHERE fuc_id = $2 AND avaliador_id = $3 AND template_id = $4 RETURNING *',
+        [JSON.stringify(respostas), fuc_id, avaliador_id, template_id]
       );
       res.json(rows[0]);
     } else {
-      // Create new evaluation
       const { rows } = await pool.query(
-        'INSERT INTO avaliacoes (fuc_id, avaliador_id, respostas) VALUES ($1, $2, $3) RETURNING *',
-        [fuc_id, avaliador_id, JSON.stringify(respostas)]
+        'INSERT INTO avaliacoes (fuc_id, avaliador_id, template_id, respostas) VALUES ($1, $2, $3, $4) RETURNING *',
+        [fuc_id, avaliador_id, template_id, JSON.stringify(respostas)]
       );
       res.status(201).json(rows[0]);
     }
   } catch (error) {
-    console.error("Erro ao gravar relatório:", error);
-    res.status(500).json({ error: "Erro ao gravar relatório" });
+    console.error("Erro ao gravar avaliação:", error);
+    res.status(500).json({ error: "Erro ao gravar avaliação" });
   }
 });
 
-// Endpoint 4: Relatório submeter
-app.post('/api/relatorios/submeter', [
+app.post('/api/avaliacoes/submeter', [
   body('id').isInt().withMessage('ID deve ser um número'),
   body('comentario').optional().isString().trim().withMessage('Comentário deve ser uma string')
 ], validate, async (req, res) => {
@@ -574,21 +654,20 @@ app.post('/api/relatorios/submeter', [
   try {
     const { rowCount } = await pool.query(
       'UPDATE avaliacoes SET respostas = respostas || $1 WHERE id = $2',
-      [JSON.stringify({ submetido: 'true', comentario }), id]
+      [JSON.stringify({ estado: 'submetido', comentario }), id]
     );
 
     if (rowCount === 0) {
-      return res.status(404).json({ error: 'Relatório não encontrado' });
+      return res.status(404).json({ error: 'Avaliação não encontrada' });
     }
 
     res.json({ success: true });
   } catch (error) {
-    console.error("Erro ao submeter relatório:", error);
-    res.status(500).json({ error: "Erro ao submeter relatório" });
+    console.error("Erro ao submeter avaliação:", error);
+    res.status(500).json({ error: "Erro ao submeter avaliação" });
   }
 });
 
-// Endpoint 5: Relatório apagar
 app.delete('/api/relatorios/:id', [
   param('id').isInt().withMessage('ID deve ser um número')
 ], validate, async (req, res) => {
@@ -605,7 +684,6 @@ app.delete('/api/relatorios/:id', [
     res.status(500).json({ error: "Erro ao apagar relatório" });
   }
 });
-
 
 app.use(handleErrors);
 

@@ -50,6 +50,7 @@ const AvaliacaoFUC = () => {
     const { id } = useParams<{ id: string }>()
     const [searchParams] = useSearchParams()
     const templateId = searchParams.get('template')
+    const draftId = searchParams.get('draft')
     const { user } = useUser()
 
     const [fuc, setFuc] = useState<FUC | null>(null)
@@ -60,6 +61,7 @@ const AvaliacaoFUC = () => {
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const [avaliacaoId, setAvaliacaoId] = useState<number | null>(null)
 
     // Enhanced FUC content parser (same as in GerirTemplate)
     const parseFucContent = (content: string): Campo[] => {
@@ -187,6 +189,11 @@ const AvaliacaoFUC = () => {
                     setCampos(extractedCampos)
                 }
 
+                // Load draft if continuing evaluation
+                if (draftId) {
+                    await loadDraftEvaluation(parseInt(draftId))
+                }
+
             } catch (err) {
                 console.error('Erro ao carregar dados:', err)
                 setError('Erro ao carregar dados da avaliação')
@@ -196,16 +203,30 @@ const AvaliacaoFUC = () => {
         }
 
         fetchData()
-    }, [id, templateId])
+    }, [id, templateId, draftId])
 
-    const handleRespostaChange = (campoId: string, tipo: 'texto' | 'escolha_multipla', valor: string, comentario?: string) => {
+    const loadDraftEvaluation = async (draftIdNum: number) => {
+        try {
+            const response = await axios.get(`${API_BASE}/api/avaliacoes/${draftIdNum}`)
+            const draftData = response.data
+
+            if (draftData.respostas && draftData.respostas.campos) {
+                setRespostas(draftData.respostas.campos)
+                setAvaliacaoId(draftIdNum)
+            }
+        } catch (error) {
+            console.error('Erro ao carregar rascunho:', error)
+        }
+    }
+
+    const handleRespostaChange = (campoId: string, tipo: 'texto' | 'escolha_multipla', valor: string) => {
         setRespostas(prev => ({
             ...prev,
             [campoId]: {
+                ...prev[campoId],
                 campo_id: campoId,
                 tipo,
-                valor,
-                comentario: comentario || prev[campoId]?.comentario
+                valor
             }
         }))
     }
@@ -215,6 +236,9 @@ const AvaliacaoFUC = () => {
             ...prev,
             [campoId]: {
                 ...prev[campoId],
+                campo_id: campoId,
+                tipo: prev[campoId]?.tipo || 'texto',
+                valor: prev[campoId]?.valor || '',
                 comentario
             }
         }))
@@ -229,6 +253,7 @@ const AvaliacaoFUC = () => {
             const avaliacaoData = {
                 fuc_id: fuc.id,
                 avaliador_id: user.id,
+                template_id: template?.id,
                 respostas: {
                     template_id: template?.id,
                     campos: respostas,
@@ -236,7 +261,16 @@ const AvaliacaoFUC = () => {
                 }
             }
 
-            await axios.post(`${API_BASE}/api/relatorios/gravar`, avaliacaoData)
+            let response
+            if (avaliacaoId) {
+                // Update existing draft
+                response = await axios.put(`${API_BASE}/api/avaliacoes/${avaliacaoId}`, avaliacaoData)
+            } else {
+                // Create new draft
+                response = await axios.post(`${API_BASE}/api/avaliacoes/gravar`, avaliacaoData)
+                setAvaliacaoId(response.data.id)
+            }
+
             alert('Rascunho gravado com sucesso!')
         } catch (error) {
             console.error('Erro ao gravar rascunho:', error)
@@ -255,6 +289,7 @@ const AvaliacaoFUC = () => {
             const avaliacaoData = {
                 fuc_id: fuc.id,
                 avaliador_id: user.id,
+                template_id: template?.id,
                 respostas: {
                     template_id: template?.id,
                     campos: respostas,
@@ -263,7 +298,18 @@ const AvaliacaoFUC = () => {
                 }
             }
 
-            await axios.post(`${API_BASE}/api/relatorios/gravar`, avaliacaoData)
+            if (avaliacaoId) {
+                // Update existing and submit
+                await axios.put(`${API_BASE}/api/avaliacoes/${avaliacaoId}`, avaliacaoData)
+                await axios.post(`${API_BASE}/api/avaliacoes/submeter`, { id: avaliacaoId })
+            } else {
+                // Create and submit
+                const response = await axios.post(`${API_BASE}/api/avaliacoes/gravar`, avaliacaoData)
+                await axios.post(`${API_BASE}/api/avaliacoes/submeter`, { id: response.data.id })
+            }
+
+            // Clear form after submission
+            setRespostas({})
             alert('Avaliação submetida com sucesso!')
         } catch (error) {
             console.error('Erro ao submeter avaliação:', error)
@@ -318,6 +364,9 @@ const AvaliacaoFUC = () => {
                     <p><span className="font-medium">Tipo:</span> {fuc.tipo}</p>
                     <p><span className="font-medium">Template:</span> {template.nome}</p>
                     <p><span className="font-medium">Avaliador:</span> {user?.name}</p>
+                    {draftId && (
+                        <p><span className="font-medium text-yellow-600">Continuando rascunho</span></p>
+                    )}
                 </div>
                 {template.conteudo.descricao && (
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -333,6 +382,8 @@ const AvaliacaoFUC = () => {
                     .map((campoConfig) => {
                         const campo = campos.find(c => c.id === campoConfig.campo_id)
                         if (!campo) return null
+
+                        const currentResposta = respostas[campoConfig.campo_id]
 
                         return (
                             <div key={campoConfig.campo_id} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
@@ -361,7 +412,7 @@ const AvaliacaoFUC = () => {
                                                 </label>
                                                 <textarea
                                                     rows={3}
-                                                    value={respostas[campoConfig.campo_id]?.tipo === 'texto' ? respostas[campoConfig.campo_id]?.valor || '' : ''}
+                                                    value={currentResposta?.tipo === 'texto' ? currentResposta.valor : ''}
                                                     onChange={(e) => handleRespostaChange(campoConfig.campo_id, 'texto', e.target.value)}
                                                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
                                                     placeholder="Digite sua avaliação..."
@@ -376,7 +427,7 @@ const AvaliacaoFUC = () => {
                                                     Escolha uma Opção
                                                 </label>
                                                 <select
-                                                    value={respostas[campoConfig.campo_id]?.tipo === 'escolha_multipla' ? respostas[campoConfig.campo_id]?.valor || '' : ''}
+                                                    value={currentResposta?.tipo === 'escolha_multipla' ? currentResposta.valor : ''}
                                                     onChange={(e) => handleRespostaChange(campoConfig.campo_id, 'escolha_multipla', e.target.value)}
                                                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
                                                 >
@@ -397,7 +448,7 @@ const AvaliacaoFUC = () => {
                                             </label>
                                             <textarea
                                                 rows={2}
-                                                value={respostas[campoConfig.campo_id]?.comentario || ''}
+                                                value={currentResposta?.comentario || ''}
                                                 onChange={(e) => handleComentarioChange(campoConfig.campo_id, e.target.value)}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
                                                 placeholder="Comentários opcionais..."

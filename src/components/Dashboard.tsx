@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { FileText, CheckCircle, RefreshCw, AlertCircle, Settings } from 'lucide-react'
+import { FileText, CheckCircle, RefreshCw, AlertCircle, Settings, Play, Eye } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 import { API_BASE } from '../config/api'
-
 
 interface Template {
   id: number
@@ -26,10 +25,20 @@ interface DashboardData {
   fucs: FUC[]
 }
 
+interface DraftEvaluation {
+  id: number
+  fuc_id: number
+  template_id: number
+  template_nome: string
+  fuc_nome: string
+  created_at: string
+}
+
 const Dashboard = () => {
   const { user } = useUser()
   const navigate = useNavigate()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [draftEvaluations, setDraftEvaluations] = useState<DraftEvaluation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,6 +70,9 @@ const Dashboard = () => {
             })
         )
         setDashboardData({ fucs: fucsWithTemplates })
+
+        // Fetch draft evaluations for avaliador
+        await fetchDraftEvaluations()
       } else if (user?.activeRole === 'gestor') {
         // Gestor: Só vê FUCs ativas para gestão de templates
         const enabledFucs = rawFucs.filter((fuc: FUC) => fuc.enabled)
@@ -77,6 +89,17 @@ const Dashboard = () => {
     }
   }
 
+  const fetchDraftEvaluations = async () => {
+    if (!user || user.activeRole !== 'avaliador') return
+
+    try {
+      const response = await axios.get(`${API_BASE}/api/avaliacoes/rascunhos/${user.id}`)
+      setDraftEvaluations(response.data)
+    } catch (error) {
+      console.error('Erro ao buscar rascunhos:', error)
+    }
+  }
+
   useEffect(() => {
     fetchDashboardData()
   }, [user])
@@ -84,6 +107,14 @@ const Dashboard = () => {
   // Navega para a página de avaliação com o ID da template
   const handleTemplateSelect = (templateId: number, fucId: string) => {
     navigate(`/avaliacao-fuc/${fucId}?template=${templateId}`)
+  }
+
+  const handleContinueDraft = (draft: DraftEvaluation) => {
+    navigate(`/avaliacao-fuc/${draft.fuc_id}?template=${draft.template_id}&draft=${draft.id}`)
+  }
+
+  const handleViewFUCContent = (fucId: string) => {
+    navigate(`/fuc-content/${fucId}`)
   }
 
   if (loading) {
@@ -127,6 +158,35 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Draft Evaluations Section for Avaliador */}
+      {user?.activeRole === 'avaliador' && draftEvaluations.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Rascunhos de Avaliação</h2>
+            <div className="space-y-3">
+              {draftEvaluations.map(draft => (
+                <div key={draft.id} className="flex items-center justify-between bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                  <div>
+                    <h3 className="font-medium text-gray-900">{draft.fuc_nome}</h3>
+                    <p className="text-sm text-gray-600">Template: {draft.template_nome}</p>
+                    <p className="text-xs text-gray-500">
+                      Gravado em: {new Date(draft.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleContinueDraft(draft)}
+                    className="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    Continuar Avaliação
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
@@ -165,7 +225,7 @@ const Dashboard = () => {
                     <FileText className="w-6 h-6 text-purple-600" />
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-4 space-y-2">
                     {user?.activeRole === 'avaliador' ? (
                       fuc.templates && fuc.templates.length > 0 ? (
                         <div className="space-y-2">
@@ -202,12 +262,21 @@ const Dashboard = () => {
                         Gerir Templates
                       </Link>
                     ) : (
-                      <Link
-                        to={`/gestao-fuc`}
-                        className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-                      >
-                        Ver Detalhes
-                      </Link>
+                      <div className="space-y-2">
+                        <Link
+                          to={`/gestao-fuc`}
+                          className="inline-flex items-center justify-center w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+                        >
+                          Ver Detalhes
+                        </Link>
+                        <button
+                          onClick={() => handleViewFUCContent(fuc.id)}
+                          className="inline-flex items-center justify-center w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Ver Conteúdo
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

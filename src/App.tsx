@@ -8,6 +8,7 @@ import Relatorios from './components/Relatorios'
 import AdminAddUser from './components/AdminAddUser'
 import GerirTemplate from './components/GerirTemplate'
 import CriarFUC from './components/CriarFUC'
+import FUCContent from './components/FUCContent'
 import Login from './components/Login'
 import { UserProvider, useUser } from './context/UserContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -32,7 +33,7 @@ function AppContent() {
       <main className="container mx-auto px-4 py-8">
         <Routes>
           <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard\" replace /> : <Login />} />
+          <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
           <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} />} />
           
           {/* Admin only routes */}
@@ -40,6 +41,7 @@ function AppContent() {
           <Route path="/criar-fuc" element={<ProtectedRoute element={<CriarFUC />} allowedRoles={['admin']} />} />
           <Route path="/relatorios" element={<ProtectedRoute element={<Relatorios />} allowedRoles={['admin']} />} />
           <Route path="/admin/add-user" element={<ProtectedRoute element={<AdminAddUser />} allowedRoles={['admin']} />} />
+          <Route path="/fuc-content/:id" element={<ProtectedRoute element={<FUCContent />} allowedRoles={['admin']} />} />
           
           {/* Gestor only routes */}
           <Route path="/gerir-template" element={<ProtectedRoute element={<GerirTemplate />} allowedRoles={['gestor']} />} />
