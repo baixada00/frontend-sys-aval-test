@@ -56,7 +56,7 @@ const GerirTemplate = () => {
     const [saving, setSaving] = useState(false)
     const [editingIndex, setEditingIndex] = useState<string | null>(null)
 
-    // Enhanced FUC content parser with better index handling
+    // Parser de conteúdo da FUC melhorado com melhor gestão de índices
     const parseFucContent = (content: string): Campo[] => {
         if (!content) return []
 
@@ -66,7 +66,7 @@ const GerirTemplate = () => {
         let descriptionLines: string[] = []
         let campoCounter = 1
 
-        // Enhanced regex patterns for better section detection
+        // Padrões regex melhorados para melhor deteção de secções
         const mainSectionRegex = /^(\d+)\.\s*(.+)/
         const subSectionRegex = /^(\d+\.\d+)\.\s*(.+)/
         const deepSubSectionRegex = /^(\d+\.\d+\.\d+)\.\s*(.+)/
@@ -74,8 +74,8 @@ const GerirTemplate = () => {
         const processCurrentCampo = () => {
             if (currentCampo.titulo && descriptionLines.length > 0) {
                 const cleanDescription = descriptionLines.join('\n').trim()
-                
-                // Only add if there's meaningful content
+
+                // Só adiciona se houver conteúdo relevante
                 if (cleanDescription.length > 0) {
                     campos.push({
                         id: `campo_${campoCounter}`,
@@ -91,7 +91,7 @@ const GerirTemplate = () => {
         }
 
         lines.forEach((line) => {
-            // Check for deep subsection first (most specific)
+            // Verifica primeiro subsecção profunda (mais específica)
             const deepSubMatch = deepSubSectionRegex.exec(line)
             if (deepSubMatch) {
                 processCurrentCampo()
@@ -105,7 +105,7 @@ const GerirTemplate = () => {
                 return
             }
 
-            // Check for subsection
+            // Verifica subsecção
             const subMatch = subSectionRegex.exec(line)
             if (subMatch) {
                 processCurrentCampo()
@@ -119,7 +119,7 @@ const GerirTemplate = () => {
                 return
             }
 
-            // Check for main section
+            // Verifica secção principal
             const mainMatch = mainSectionRegex.exec(line)
             if (mainMatch) {
                 processCurrentCampo()
@@ -133,21 +133,21 @@ const GerirTemplate = () => {
                 return
             }
 
-            // Add to description if not a section header
+            // Adiciona à descrição se não for cabeçalho de secção
             if (line && !line.match(/^\d+\./) && currentCampo.titulo) {
                 descriptionLines.push(line)
             }
         })
 
-        // Process the last campo
+        // Processa o último campo
         processCurrentCampo()
 
-        // Filter out campos with only index and no meaningful title
-        return campos.filter(campo => 
-            campo.titulo && 
-            campo.titulo.length > 0 && 
-            !campo.titulo.match(/^\d+\.?\s*$/) && // Not just numbers
-            campo.descricao && 
+        // Filtra campos que só têm índice e não têm título relevante
+        return campos.filter(campo =>
+            campo.titulo &&
+            campo.titulo.length > 0 &&
+            !campo.titulo.match(/^\d+\.?\s*$/) && // Não apenas números
+            campo.descricao &&
             campo.descricao.length > 0
         )
     }
@@ -188,10 +188,10 @@ const GerirTemplate = () => {
                 axios.get(`${API_BASE}/api/fucs/${fucId}`)
             ])
 
-            // Parse templates with proper structure
+            // Parse templates com estrutura mais solida
             const parsedTemplates = templatesRes.data.map((template: any) => ({
                 ...template,
-                conteudo: typeof template.conteudo === 'string' 
+                conteudo: typeof template.conteudo === 'string'
                     ? { campos_avaliacao: [], descricao: template.conteudo }
                     : {
                         campos_avaliacao: template.conteudo.campos_avaliacao || [],
@@ -200,7 +200,7 @@ const GerirTemplate = () => {
             }))
             setTemplates(parsedTemplates)
 
-            // Parse FUC content to extract campos
+            // Parse FUC conteudo para extreair campos
             const fucData = fucRes.data
             if (fucData.conteudo) {
                 const extractedCampos = parseFucContent(fucData.conteudo)
@@ -227,7 +227,7 @@ const GerirTemplate = () => {
 
         try {
             setSaving(true)
-            
+
             // Ensure proper JSON structure for template content
             const templateData = {
                 nome: currentTemplate.nome,
@@ -333,7 +333,7 @@ const GerirTemplate = () => {
                     ordem: camposAtualizados.length + 1
                 })
             } else {
-                const tipos = camposAtualizados[campoIndex].tipo_avaliacao
+                const tipos = [...camposAtualizados[campoIndex].tipo_avaliacao]
                 const tipoIndex = tipos.indexOf(tipo)
 
                 if (tipoIndex === -1) {
@@ -361,7 +361,7 @@ const GerirTemplate = () => {
                     ...prev.conteudo,
                     campos_avaliacao: camposAtualizados
                 }
-            }
+            } as Template
         })
     }
 
@@ -467,26 +467,29 @@ const GerirTemplate = () => {
 
             const campos = [...prev.conteudo.campos_avaliacao]
             const currentIndex = campos.findIndex(c => c.campo_id === campoId)
-            
-            if (currentIndex === -1) return prev
-            
-            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-            
-            if (newIndex < 0 || newIndex >= campos.length) return prev
-            
-            // Swap elements
-            [campos[currentIndex], campos[newIndex]] = [campos[newIndex], campos[currentIndex]]
 
-            // Update ordem
-            campos.forEach((campo, index) => {
-                campo.ordem = index + 1
-            })
+            if (currentIndex === -1) return prev
+
+            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+
+            if (newIndex < 0 || newIndex >= campos.length) return prev
+
+            // Swap manual
+            const temp = campos[currentIndex];
+            campos[currentIndex] = campos[newIndex];
+            campos[newIndex] = temp;
+
+            // Atualizar ordem
+            const updatedCampos = campos.map((campo, index) => ({
+                ...campo,
+                ordem: index + 1
+            }));
 
             return {
                 ...prev,
                 conteudo: {
                     ...prev.conteudo,
-                    campos_avaliacao: campos
+                    campos_avaliacao: updatedCampos
                 }
             }
         })
@@ -531,10 +534,10 @@ const GerirTemplate = () => {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            {/* FUC Selection */}
+            {/* Seleção de FUC */}
             {!selectedFucId && (
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-6">Selecionar FUC para Gerenciar Templates</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-6">Selecionar FUC para Gerir Templates</h1>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {fucs.map(fuc => (
                             <button
@@ -543,14 +546,14 @@ const GerirTemplate = () => {
                                 className="p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors text-left"
                             >
                                 <h3 className="font-medium text-gray-900">{fuc.titulo}</h3>
-                                <p className="text-sm text-gray-600 mt-1">Clique para gerenciar templates</p>
+                                <p className="text-sm text-gray-600 mt-1">Clique para gerir templates</p>
                             </button>
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* Template Management */}
+            {/* Gestão de Template */}
             {selectedFucId && (
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
                     <div className="flex items-center justify-between mb-6">
@@ -637,13 +640,13 @@ const GerirTemplate = () => {
                                     currentTemplate.conteudo.campos_avaliacao.map((avaliacaoConfig, templateIndex) => {
                                         const campo = campos.find(c => c.id === avaliacaoConfig.campo_id)
                                         if (!campo) return null
-                                        
+
                                         return (
                                             <div key={avaliacaoConfig.campo_id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                                                 <div className="flex items-start justify-between">
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2 mb-2">
-                                                            {/* Enhanced Index Management */}
+                                                            {/* Gestão de Index Avançada */}
                                                             <div className="flex items-center gap-2">
                                                                 {editingIndex === avaliacaoConfig.campo_id ? (
                                                                     <input
@@ -672,8 +675,8 @@ const GerirTemplate = () => {
                                                             {campo.tipo}
                                                         </span>
                                                     </div>
-                                                    
-                                                    {/* Campo Controls */}
+
+                                                    {/* Campo Controlos */}
                                                     <div className="flex flex-col gap-1 ml-4">
                                                         <button
                                                             onClick={() => moveCampo(avaliacaoConfig.campo_id, 'up')}
@@ -770,7 +773,7 @@ const GerirTemplate = () => {
                                     })
                                 )}
 
-                                {/* Add remaining campos */}
+                                {/* Add campos restantes */}
                                 {campos.length > 0 && (
                                     <div className="border-t pt-4">
                                         <h4 className="text-md font-medium text-gray-700 mb-3">Adicionar Campos à Template</h4>
